@@ -1,6 +1,6 @@
 test_that("b_l_to_b_w() and b_w_to_b_l() work", {
   expect_equal(b_l_to_b_w(-5.1, beta = 3),
-               -2.366667)     # Though took from the function
+               -2.36666666)     # Though took from the function
   expect_equal(b_w_to_b_l(-2, beta = 3),
                -4)
 
