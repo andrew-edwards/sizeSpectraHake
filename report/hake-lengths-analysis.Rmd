@@ -1,0 +1,1040 @@
+---
+title: "Analyses of hake lengths using size spectra approach"
+author: "Andrew Edwards"
+output: pdf_document
+fontsize: 12pt
+date: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 10,
+  fig.height = 8
+)
+```
+
+```{r, packages}
+library(dplyr)
+library(sizeSpectra)    # Probably need latest version
+library(pacea)
+library(HistogramTools)  # prob don't need now
+# load_all()  # maybe best to do manually.
+```
+
+<!-- taken from size-spectra-applications/ hake-lengths-for-pdf.Rmd, to do here
+ as a package -->
+
+
+HERE TODO next:
+- check plots with .html version - all good execept 2021 histogram
+    - have got working but it's still slightly different
+- then can delete loop non-functionalised version here.
+- Tidy this up then should be able to just repeat functions for Strata C and
+  other strata.
+
+NOAA SWFSC Rockfish Recruitment and Ecosystem Assessment Survey (RREAS)
+
+In La Jolla I wrote `hake-lengths.Rmd` which produced .html files (saved as
+`hake-lengths.html` and `hake-lengths-strata-C-all-years.html`) and was used as template for
+`hake-length-larvae.Rmd', which was done quickly on the final day. Had used a
+vignette as a template and now converting to a preferable pdf version, and tidying up.
+
+So looking at young-of-the-year. Want to functionalise some of this to then
+easily use for larvae. Also want to use John Field's updated data set, but stick
+with original for now to get this working.
+
+TODO Re-organise filenames a little, though maybe best to functionalise. Also see hake-lengths-larvae.Rmd.
+
+Dataset `hake_lenclasses_cpue.csv` was downloaded from Google Drive owned by Ed
+Weber, 10th May 2023. But first looking at `cpue-length_hake-hayden....csv` from
+Iain (15th May 2023).
+
+TO ASK:
+1. Is there a Cruise/Technical Report I should look at (TODO first search for one).
+
+2. What is effort; seems a little strange that CPUE are all integers. See
+   `sort(unique(raw$CPUE_YOY))`. Oh, I think they were one-hour tows. TODO check.
+
+3. For a length measured as 30 mm, I need to specify a corresponding length
+   bin. Should this be 29.5-30.5 mm, or 30-31mm? I've assumed the former but can
+   easily change it.
+
+
+Ideas to come back to:
+
+- think about global x range.
+
+- Double check calcs of $b_w$, then plot against
+hake recruitment. Though could just stick with $b_l$, as it's a linear scaling
+and maybe an unnecessary extra step.
+
+- then also do for other strata. And decide on criteria for leaving out some
+of the data.
+
+## Load in raw data
+
+```{r loadsetdata}
+raw <- readr::read_csv("../../size-spectra-applications/calcofi-hake/hake-lengths/cpue-length_hake-hayden's weight file with all fish in an annual super tow.csv") %>%
+  dplyr::mutate_if(is.character, factor)
+
+raw
+
+summary(raw)
+```
+
+Each row is a fish (given a `SP_NO`, specimen).
+
+`CPUE_YOY` -- the CPUE of young-of-year hake caught in that haul. The rows
+for that haul are only the fish that were measured (sampled), each having a
+length of `STD_LENGTH`.
+
+`WEIGHT` -- not using, think it just the length-weight relationship applied to
+each `STD_LENGTH`.
+
+Data originally from John Field.
+
+## Validate understanding of data structure
+
+First validate some assumptions to check I understand the data. Just do 2004
+first then all years.
+```{r, validate_2004}
+raw_2004 <- filter(raw,
+                   YEAR == 2004)
+
+raw_2004
+
+stopifnot(length(unique(raw_2004$CRUISE)) == 1)   # One CRUISE per year
+# Check each year-station combination has the same HAUL_NO and CPUE_YOY
+
+# Both of these return a warning (I'd prefer an error) about returning more than one line per group. So HAUL_NO and CPUE_YOY not unique per year-station combination. Hayden used YEAR, STRATA, HAUL_NO so try that after.
+raw_2004_summ_a <- summarise(group_by(raw_2004,
+                                      YEAR,
+                                      STATION),
+                             haul_no = unique(HAUL_NO))#,
+
+raw_2004_summ_a
+
+raw_2004_summ_b <- summarise(group_by(raw_2004,
+                                      YEAR,
+                                      HAUL_NO),
+                             cpue_yoy = unique(CPUE_YOY))  # No error but has not
+                                        # grouped by HAUL_NO, only YEAR:
+raw_2004_summ_b
+# Yet:
+length(unique(raw_2004_summ_b$HAUL_NO))   # also has 92 rows. So seems okay,
+                                        # message was curious.
+
+# So seems like multiple hauls at a station, but each HAUL_NO does indeed have a
+# unique CPUE_YOY.
+
+# Each SP_NO is unique, a code for each specimen (individual fish)
+expect_equal(nrow(raw_2004),
+             length(unique(raw_2004$SP_NO)))
+```
+
+That makes more sense. Repeat the essential from above for all data, grouped by year:
+
+```{r validate_all}
+# Doing year-by-year to see when errors (with a warning). Okay: 2004, 2005, ..., 2014, 2017,
+#  2018, 2020, 2021
+# Not okay: 2015, 2016, 2019
+raw_summ <- summarise(group_by(filter(raw,
+                                      YEAR == 2015),
+                               YEAR,
+                               HAUL_NO),
+                      cpue_yoy = unique(CPUE_YOY))
+
+raw_summ
+
+# So 2015 does not have a unique CPUE_YOY for each HAUL_NO. Aha - check STRATA
+# as well (Hayden used in his unique ID for each haul:
+
+# These work for 2015, 2016, 2019.
+raw_XXXX_summ <- summarise(group_by(filter(raw,
+                                           YEAR == 2019),
+                                    YEAR,
+                                    HAUL_NO,
+                                    STRATA),  # Don't get why not grouped by
+                                        # STRATA also
+                      cpue_yoy = unique(CPUE_YOY))
+```
+So each `YEAR-HAUL_NO-STRATA` combination correctly has a unique `CPUE_YOY`;
+hence Hayden used that to assign a `UniqueID`
+
+```{r, validatesp}
+# Each SP_NO is unique, a code for each specimen (individual fish)
+#expect_equal(nrow(raw),
+#             length(unique(raw$SP_NO)))
+# Errors, but not worrying too much as I won't use SP_NO (expect it's year
+# dependent; SP_NO = 1 occurs 5 times, so does 2, so maybe year dependent).
+
+# sort(unique(raw$CPUE_YOY))  # These are all integers, TODO find out what
+# effort is, as kind of strange that integer divided by effort is still integer.
+```
+
+
+## Simplify data to the years we want
+
+Some original ideas I think:
+
+Do lengths from 28 to 89 mm.
+
+Whole coast do 2004 onwards, for just "C" can do all years (i.e. back to
+1994). TODO check the regions though excplicitly.
+
+N only from 2013 onwards, so not much.
+
+Combine N and NC, though early years not sampled so could just do NC.
+
+Do NC, C, SC, S, from 2004 onwards. Separately and combined, though more
+southern don't have such a range.
+
+Make sure to not use OR and WA. WA is only 2011 and 2016. WA is 2011 2014 2015 2016 2017 2019.
+<!-- unique(filter(raw, STRATA == "OR")$YEAR) -->
+
+Try 2 mm bins for coastwide, Iain thinks should should affect the cutting off issue for 2014.
+
+D Ignore WA and OR (only 1 cm resolution), different surveys.
+
+Convert to body mass first, check results come out the same (Charlie). Though
+lengths are working fine, probably best to stick with these.
+
+Larvae. See `hake-lengths-larvae.Rmd` for what I started quickly on final day at
+La Jolla.
+
+D Rename columns for simplicity.
+
+TODO functionalise with functions early on here, may want to do in a new package.
+
+```{r, simplify}
+raw_simp <- filter(raw,
+                   YEAR > 2003,
+                   STD_LENGTH >= 28,   # TODO check with Iain, he said 28 onwards
+                                      # was > 27 but isn't actually as 0.01mm resolution
+                   STD_LENGTH < 90,
+                   STRATA %in% c("C", "NC", "S", "SC", "N")) %>%
+  select(year = YEAR,
+         haul_no = HAUL_NO,
+         strata = STRATA,
+         x = STD_LENGTH,
+         cpue_yoy = CPUE_YOY) %>%
+  mutate(id = paste(year,       # Hayden's id, to make calcs easier
+                    strata,     # than grouping, and to more easily compare any results.
+                    haul_no,
+                    sep = "_")) %>%
+  arrange(year,
+          strata,
+          haul_no)
+
+raw_simp
+
+# One row for each haul:
+raw_simp_totals <- raw_simp %>% group_by(id) %>%
+  summarise(measured_in_haul = n())
+hist(raw_simp_totals$measured_in_haul, breaks = 40)
+# Shows don't have enough data to fit at the haul level - kind of, have to check
+# final 'counts' TODO down below
+
+# Calculate proportion of cpue_yoy that were measured, kind of assuming
+#  cpue_yoy is an absolute count of fish, which it seems to be as it's always
+#  integer. If effort is always the same for every tow, then maybe an effort of
+#  1 is just a standard tow, hence there's no scaling (and hence cpue is an
+#  integer). TODO check this with Iain/John.
+# Then scale the counts up by 1/prop_measured (i.e. if only half the fish in a
+#  haul were measured, then double the count for each size)
+raw_simp_prop <- left_join(raw_simp,
+                           raw_simp_totals,
+                           by = "id") %>%
+  mutate(prop_measured = measured_in_haul / cpue_yoy,
+         scaled_counts = 1 / prop_measured)
+
+raw_simp_prop
+summary(raw_simp_prop)
+
+# hist(raw_simp_prop$measured_in_haul, breaks = 40)   # Shows won't have enough
+# hist(raw_simp_prop$scaled_counts, breaks = 40)   # Shows won't have enough
+# TODO do something similar at the haul level (?)
+
+# Lengths are not always integers - turns out in 2021 they are to nearest 0.01
+# mm (and maybe later years if get more data).
+sort(unique(raw_simp_prop$x))[1:10]
+# summarise(group_by(raw_simp,
+#                   year,
+#                   x)) %>%
+#  as.data.frame()
+
+stopifnot(max(raw_simp$year) == 2021)   # if get new data then need to look at
+                                        # resolution and change code below appropriately
+
+```
+Last (commented code) shows that only 2021 has lengths to 0.01 mm. So deal with that
+separately below.
+
+## Define bin widths for each year
+
+Needs to be general, so make a tibble encompassing all years of data;
+```{r binwidth}
+bin_width_each_year <- tibble::tibble(year = min(raw$YEAR):max(raw$YEAR)) %>%
+  mutate(bin_width = ifelse(year %in% c(2021),
+                            0.01,
+                            1))
+
+if(max(raw$YEAR) > 2021) stop("Need to check bin width of new data")
+```
+
+## First do one year and just strata C
+
+```{r, 2004C}
+data_2004_C <- filter(raw_simp_prop,
+                      year == 2004)
+#                      strata == "C")
+
+#counts_per_length_value <- select(data_2004_C,
+#                                  x,
+#                                  scaled_counts)
+
+counts_per_bin <- summarise(group_by(data_2004_C,
+                                     x),
+                            binCount = sum(scaled_counts)) %>%
+  mutate(binMid = x,
+         binMin = binMid - 0.5,
+         binMax = binMid + 0.5) %>%  # Assume these are midpoints, but TODO check
+  select(-"x")
+
+counts_per_bin         # Bins and the counts in each bin
+```
+
+Want to only fit the descending limb, though a lognormal might fit the whole
+thing.
+
+```{r, descending}
+max_ind <- which.max(counts_per_bin$binCount)
+
+# ACTUALLY WRONG (see loop, which deals with max_ind = 1), but keep as good for
+# testing. Loop results don't match this example!
+binned_desc <- counts_per_bin[-(1:(max_ind-1)), ]  # desc = descending
+
+plot(counts_per_bin$binMid,
+     counts_per_bin$binCount,
+     type="h")
+
+points(binned_desc$binMid,
+       binned_desc$binCount,
+       type="h",
+       col = "red")
+# Fine for now, could do a better histogram using barplot (leaves gaps though,
+# need histogram).
+# web example:
+# ggplot2::qplot(bin, data=cbind(bins,counts), weight=counts, geom="histogram")
+# qplot deprecated, quickly trying this but binMid not found. Sticking with base.
+# ggplot2::ggplot(counts_per_bin, data = cbind(binMid, binCount), weight =
+#        binCount, geom = "histogram")
+```
+
+Think this was experimental and can probably be deleted.
+```{r, histplot}
+# Figure out then generalise more
+counts_hist <- HistogramTools::PreBinnedHistogram(
+                                 breaks = c(counts_per_bin$binMin,
+                                            counts_per_bin$binMax[nrow(counts_per_bin)]),
+                                 counts = counts_per_bin$binCount,
+                                 xname = "Body length (x), mm")  # returns hist object
+# But we need to manually fill in empty bins, which is why this does density not count:
+plot(counts_hist)
+c(counts_per_bin$binMin, counts_per_bin$binMax[nrow(counts_per_bin)]) %>% diff()
+
+
+
+all_bins <- tibble::tibble(binMid = seq(min(counts_per_bin$binMid),
+                                        max(counts_per_bin$binMid),
+                                        1)) %>%   # TODO generalise
+  mutate(binMin = binMid - 0.5,
+         binMax = binMid + 0.5)       # TODO generalise those also
+
+counts_all <- dplyr::right_join(counts_per_bin,
+                                all_bins,
+                                by = c("binMid",
+                                       "binMin",
+                                       "binMax")) %>%
+  tidyr::replace_na(list(binCount = 0)) %>%
+  arrange(binMin)
+
+counts_all %>% as.data.frame()
+
+counts_list <- list(breaks = c(counts_all$binMin,
+                               max(counts_all$binMax)),
+                    mids = counts_all$binMid,
+                    counts = counts_all$binCount,
+                    xname = "Body length (x), mm",
+                    equidist = TRUE)
+class(counts_list) <- c("histogram", class(counts_list))
+counts_list
+plot(counts_list) # plots the usual histogram
+```
+
+Now created function `make_hist()` to do that.
+
+TODO change names here, when delete the above
+```{r countsfromfn}
+counts_list_from_fn <- make_hist(counts_per_bin)
+expect_equal(counts_list, counts_list_from_fn)
+
+plot(counts_list_from_fn, main = "2004")
+```
+
+That worked. Now create the descending limb only (though here should have been
+the same but had a mistake earlier; will try a different year for the example TODO).
+```{r descfromfn}
+binned_desc_from_fn <- make_hist(binned_desc)
+plot(counts_list_from_fn, main = "2004")
+plot(binned_desc_from_fn, add = TRUE, col = "red")
+```
+
+Now fit the PLB distribution using the MLEbin method.
+The fitting function takes the binned data as two vectors (the bin breaks
+and the counts in each bin), extracted from `binned_desc`.
+
+Fit based on just tibble: (have adapted into all years loop later)
+```{r tibble}
+MLEbin_res <-  calcLike(negLL.fn = negLL.PLB.binned,
+                        p = -1.5,
+                        w = c(dplyr::pull(binned_desc, binMin),
+                              dplyr::pull(binned_desc, binMax)[nrow(binned_desc)]),
+                            # all minima plus max of final bin
+                        d = dplyr::pull(binned_desc, binCount),
+                        J = nrow(binned_desc),   # = num.bins
+                        vecDiff = 1)             # increase this if hit a bound
+```
+
+The `NA/Inf replaced by maximum positive value` warnings are fine - the
+likelihood function is blowing up in a very unlikely region of parameter
+space.
+
+### Plot the data and the fit like in MEPS Fig. 7, using tibble method
+
+Real data can either input to the plotting function in the above form - a vector `binBreaks`
+of breakpoints and a vector `binCounts` of counts in each bin, or as a tibble.
+
+If you prefer keeping your binned data as a tibble, then you can use the tible
+in the call to the plotting function (though you do still need to input the data
+as two vectors in the `calcLike` call above). This gives the same figures:
+```{r, plottib, fig.width = 5.36, fig.height = 8}
+ISD_bin_plot_nonoverlapping(binValsTibble = binned_desc,
+                            b.MLE = MLEbin_res$MLE,
+                            b.confMin = MLEbin_res$conf[1],
+                            b.confMax = MLEbin_res$conf[2],
+                            yBig.inc = 10000,
+                            xLab = "Body length (x), mm")
+```
+
+The y-axis is (a) linear and (b) logarithmic. For each bin, the horizontal green
+line shows the range of body lengths of that bin, with its value
+on the y-axis corresponding to the total number of individuals in bins whose
+minima are $\geq$ the bin's minimum. By definition, this includes all individual
+in that bin; for example, all $n$ individuals are $\geq$ the minimum of
+the first (left-most) bin, so that bin is at $n$ on the y-axis. The vertical
+span of each grey rectangle shows the possible numbers of
+individuals with body length $\geq$ the
+body length of individuals in that bin (horizontal
+span is the same as for the green lines). The maximum number of such individuals
+is the same as the green line, and the minimum number (bottom of grey rectangle)
+is the total number of individuals $\geq$ the bin's maximum. By definition, this is then the
+green line for the next bin. This plotting method allows us to properly represent the
+discrete binned data on a continuous scale.
+The text
+in (a) gives the MLE for the length size-spectrum exponent
+$b$, and the sample size $n$.
+
+TODO (adapting from MEPS vignette): For example, the first bin is for lengths
+between `r binned_desc[1, "binMin"]` and `r binned_desc[1, "binMax"]` mm, and
+countains a count of `r f(pull(binned_desc, "binCount")[1], 1)` individuals. We don't know
+how those individual's lengths are distributed within the bin. The green line on
+the y-axis illustrates that the number of individuals $\geq$ the minimum of the
+bin (`r binned_desc[1, "binMin"]` mm) is `r f(sum(binned_desc$binCount), 1)`, namely
+all the individuals because this is the minimum length in the data. The grey
+shaded area shows the uncertainty -- the number (on the y-axis) of possible individual individuals with
+body mass $\geq$ any x-value within the bin is between
+`r f(sum(binned_desc$binCount) - binned_desc$binCount[1], 1)`
+and
+`r f(sum(binned_desc$binCount), 1)` (all individuals in the bin could be the smallest
+length within the bin or the highest).
+
+Clearly that final right-hand value looks like an outlier, and it is just for
+one fish:
+```{r outlier}
+tail(binned_desc)
+```
+We could go back and try removing, but that's a little arbitrary for now.
+
+So $b$ is the length size-spectrum exponent, $b_l$. To convert to weight
+exponent, $b_w$, for a length-weight exponent of $\beta$ (writing up derivation elsewhere):
+
+$b_w = (b_l + 1) / \beta - 1$
+
+or, going the other way,
+
+$b_l = \beta (b_w + 1) - 1$
+
+Assuming $\beta = 3.1802$ for now:
+```{r, bweight}
+b_weight <- b_l_to_b_w(MLEbin_res$MLE)
+b_weight
+```
+
+## Functionalise calculations for each year (just strata C) -- have confirmed get same results as original loop
+
+Going to do calculations first in a loop (or maybe general function), then plot
+all the figures for each year. Data to use is `raw_simp_prop` as that has the
+scaled counts already calculated.
+
+
+```{r fitallyearsfunction}
+fit_all_years <- function(raw_simp_prop,
+                          strata = c("C", "NC", "S", "SC", "N"), # already done
+                          # above but leave as default
+                          bin_width_each_year    # tibble of bin widths in each
+                                        # year, calculated earlier
+                        ){
+  full_years <- sort(unique(raw_simp_prop$year))
+
+  results <- list()        # All the results, each element of list corresponds
+                           # to a list of results for that year
+
+  for(i in 1:length(full_years)){
+    bin_width <- filter(bin_width_each_year,
+                        year == full_years[i]) %>%
+      pull(bin_width)
+
+    data_this_year <- filter(raw_simp_prop,
+                             year == full_years[i],
+                             strata == strata)
+
+    # Bins and the counts in each bin
+    counts_per_bin <- summarise(group_by(data_this_year,
+                                         x),
+                                binCount = sum(scaled_counts)) %>%
+      mutate(binMid = x,         # Assume these are midpoints, but TODO check
+             binMin = binMid - bin_width/2,
+             binMax = binMid + bin_width/2) %>%
+      arrange(binMid) %>%
+      select(-"x")
+
+    # Check bin widths are what we prescribed in bin_width_each_year
+    if(!expect_equal(min(diff(counts_per_bin$binMid)), bin_width)){
+      stop(paste0("Double check the value in bin_width_year_year; may have to relax this condition; this failed for year ", full_years[i]))
+      # Having no adjancet bins with values will cause this to fail, which seems
+      # unlikely), but would want to manually look into and then tweak
+      # condition. Does not fail for 2021 even with 0.01 mm bins.
+    }
+
+    max_ind <- which.max(counts_per_bin$binCount)
+
+    ifelse(max_ind == 1,
+           counts_per_bin_desc <- counts_per_bin,
+           counts_per_bin_desc <- counts_per_bin[-(1:(max_ind-1)), ])
+
+    MLEbin_res <-  calcLike(negLL.fn = negLL.PLB.binned,
+                            p = -1.5,
+                            w = c(dplyr::pull(counts_per_bin_desc,
+                                              binMin),
+                                  dplyr::pull(counts_per_bin_desc,
+                                              binMax)[nrow(counts_per_bin_desc)]),
+                                  # all minima plus max of final bin
+                            d = dplyr::pull(counts_per_bin_desc,
+                                            binCount),
+                            J = nrow(counts_per_bin_desc),   # = num.bins
+                            # suppress.warnings = TRUE,
+                            vecDiff = 15)             # increase this if hit a bound
+
+    results[[i]] <- list(
+      year = full_years[i],
+      bin_width = bin_width,
+      xmin = min(counts_per_bin_desc$binMin),
+      xmax = max(counts_per_bin_desc$binMax),
+      n = sum(counts_per_bin_desc$binCount),
+      counts_per_bin = counts_per_bin,
+      counts_per_bin_desc = counts_per_bin_desc,
+      b_l = MLEbin_res$MLE,
+      b_l_confMin = MLEbin_res$conf[1],
+      b_l_confMax = MLEbin_res$conf[2])
+  }
+
+  class(results) <- c("hake_spectra_results", class(results))
+  return(results)
+}
+
+res_all_strata <- fit_all_years(raw_simp_prop,
+                                bin_width_each_year = bin_width_each_year)
+
+# For testing:
+res_just_2021 <-  fit_all_years(filter(raw_simp_prop, year == 2021),
+                                bin_width_each_year = bin_width_each_year)
+```
+
+Create plotting function for `hake_spectra_results`.
+```{r plothakeres}
+plot.hake_spectra_results <- function(res,
+                                      years = NULL,  # years to be plotted
+                                      ...){
+  all_years <- unlist(lapply(res, '[[', "year"))
+
+  if(is.null(years)){
+    years <- all_years
+  }
+
+  # Get indices of all_years for years to be plotted
+  years_indices <- which(all_years %in% years)
+
+  # Global xlim
+  xlim_global <- c(min(unlist(lapply(res, '[[',
+                                     "xmin"))[years_indices]),
+                   max(unlist(lapply(res, '[[',
+                                   "xmax"))[years_indices]))
+
+  mai_orig <- par("mai")
+
+  for(i in years_indices){
+    par(mai = mai_orig)     # Since gets reset by ISD_bin_plot(). Should clean
+    # up that function in sizeSpectra.
+    border_col <- ifelse(res[[i]]$bin_width > 0.1,
+                         "black",
+                         "red")
+    plot(make_hist(res[[i]]$counts_per_bin,
+                   bin_width = res[[i]]$bin_width),
+         main = all_years[i],
+         xlim = xlim_global)
+    plot(make_hist(res[[i]]$counts_per_bin_desc,
+                   bin_width = res[[i]]$bin_width),
+         add = TRUE,
+         col = "red",
+         border = border_col)
+
+    ISD_bin_plot_nonoverlapping(binValsTibble = res[[i]]$counts_per_bin_desc,
+                                b.MLE = res[[i]]$b_l,
+                                b.confMin = res[[i]]$b_l_confMin,
+                                b.confMax = res[[i]]$b_l_confMax,
+                                yBig.inc = 10000,
+                                xLab = "Body length (x), mm",
+                                year = all_years[i],
+                                xlim = xlim_global,
+                                ...)
+    par(mfrow = c(1,1))
+  }
+}
+```
+
+\clearpage
+
+```{r, plotone, fig.pos = 'p', fig.height = 6.9, echo=FALSE}
+plot(res_all_strata,
+     par.cex = 0.8)    # For ISD plot
+```
+
+Just 2021 for debugging histogram (running in R console)
+```{r just2021}
+plot(make_hist(res_just_2021[[1]]$counts_per_bin,
+               bin_width = res_just_2021[[1]]$bin_width),
+     xlim = c(28, 28.5))
+plot(make_hist(res_just_2021[[1]]$counts_per_bin_desc,
+               bin_width = res_just_2021[[1]]$bin_width),
+     add = TRUE,
+     col = "red", border = "red")  # TODO this doesn't do 28.19 binMid in red,
+# but leaves it as grey
+
+# Try just the narrow range but only desc, 28.19 disappears!!:
+plot(make_hist(res_just_2021[[1]]$counts_per_bin_desc,
+               bin_width = res_just_2021[[1]]$bin_width),
+     xlim = c(28, 28.5),
+          col = "red", border = "red")
+
+test <- make_hist(res_just_2021[[1]]$counts_per_bin,
+                  bin_width = res_just_2021[[1]]$bin_width)
+# test$breaks[1:22]
+test$mids[1:21]
+test$counts[1:21]
+
+test_desc <- make_hist(res_just_2021[[1]]$counts_per_bin_desc,
+                  bin_width = res_just_2021[[1]]$bin_width)
+# est_desc$breaks[1:9]
+test_desc$mids[1:8]
+test_desc$counts[1:8]
+# wtf the 28.19 value is now 0!!!
+sum(test$counts)
+sum(test$counts[1:13])
+sum(test_desc$counts)   # Have lost way more than just the first 75. wtf.
+
+# HERE HERE - the one after second 2048.75 disappears when using desc. Think
+# it's to do with right_join having binMin and binMax, maybe remove them first.
+test_small <- make_hist(res_just_2021[[1]]$counts_per_bin[1:13,],
+                  bin_width = res_just_2021[[1]]$bin_width)
+test_small$mids
+test_small$counts
+
+test_small_desc <- make_hist(res_just_2021[[1]]$counts_per_bin_desc[1:8,],
+                  bin_width = res_just_2021[[1]]$bin_width)
+test_small_desc$mids
+test_small_desc$counts
+
+
+```
+
+```{r exit1}
+knitr::knit_exit()
+```
+
+
+
+
+## Do calculations for each year, just doing strata C for now - original calculations
+
+```{r descending2}
+full_years <- sort(unique(raw_simp_prop$year))
+full_years
+
+# For now removing some of things that were calculated above for 2004. Won't be needed if
+#  functionalise what's in the loop TODO, which will be cleaner.
+rm(counts_per_bin,
+   max_ind,
+   binned_desc,
+   MLEbin_res)
+
+for(i in 1:length(full_years)){
+  paste("Year is", full_years[i])
+
+  bin_width <- ifelse(full_years[i] < 2021,
+                      1,
+                      0.01)
+
+  # For 2021 data:
+  #  raw_simp_prop_this_year$x - round(raw_simp_prop_this_year$x,
+  #                                    digits = 2)
+  # are all zeros. Check for later years.
+  raw_simp_prop_this_year <- filter(raw_simp_prop,
+                                    year == full_years[i])
+#                                    strata == "C")    # TODO just do C for now
+  counts_per_bin <- summarise(group_by(raw_simp_prop_this_year,
+                                       x),
+                              binCount = sum(scaled_counts)) %>%
+  mutate(binMid = x,
+         binMin = binMid - bin_width/2,
+         binMax = binMid + bin_width/2) %>%  # Assume these are midpoints, but TODO check
+  select(-"x")
+  # TODO reorder to have binCount last
+
+  counts_per_bin         # Bins and the counts in each bin
+
+  # Descending limb
+  max_ind <- which.max(counts_per_bin$binCount)
+  max_ind
+
+  if(max_ind == 1){
+    binned_desc <- counts_per_bin
+  } else {
+    binned_desc <- counts_per_bin[-(1:(max_ind-1)), ]
+  }
+
+  plot(counts_per_bin$binMid,
+       counts_per_bin$binCount,
+       type="h",
+       main = full_years[i])
+
+  points(binned_desc$binMid,
+         binned_desc$binCount,
+         type="h",
+         col = "red")
+
+  MLEbin_res <-  calcLike(negLL.fn = negLL.PLB.binned,
+                          p = -1.5,
+                          w = c(dplyr::pull(binned_desc,
+                                            binMin),
+                                dplyr::pull(binned_desc,
+                                            binMax)[nrow(binned_desc)]),
+                                # all minima plus max of final bin
+                          d = dplyr::pull(binned_desc,
+                                          binCount),
+                          J = nrow(binned_desc),   # = num.bins
+                          # suppress.warnings = TRUE,
+                          vecDiff = 15)             # increase this if hit a bound
+
+  # Move into a plotting loop, but do each one at a time now.
+  ISD_bin_plot_nonoverlapping(binValsTibble = binned_desc,
+                            b.MLE = MLEbin_res$MLE,
+                            b.confMin = MLEbin_res$conf[1],
+                            b.confMax = MLEbin_res$conf[2],
+                            yBig.inc = 10000,
+                            xLab = "Body length (x), mm",
+                            year = full_years[i])
+                            # main = full_years[i])
+
+  par(mfrow = c(1,1))
+  # TODO check y axis bottom limit for i=16, year 2019
+
+  # Save all results in MLEbin_res_all_years
+    if(i == 1){
+      MLEbin_res_all_years <- data.frame(Year = full_years[i],    # TODO should make
+                                        # Year but may have to change timeSerPlot
+                                         xmin = min(binned_desc$binMin),
+                                         xmax = max(binned_desc$binMax),
+                                         n = sum(binned_desc$binCount),
+                                         b_l = MLEbin_res$MLE,
+                                         b_l_confMin = MLEbin_res$conf[1],
+                                         b_l_confMax = MLEbin_res$conf[2])
+    } else {
+      MLEbin_res_all_years <-  rbind(MLEbin_res_all_years,
+                                     c(full_years[i],   # Must be same order as above
+                                       min(binned_desc$binMin),
+                                       max(binned_desc$binMax),
+                                       sum(binned_desc$binCount),
+                                       MLEbin_res$MLE,
+                                       MLEbin_res$conf[1],
+                                       MLEbin_res$conf[2]))
+   }
+}
+```
+
+TODO 2021 figures, dig into data, looks like scaling up of counts happened for a
+few sampled fish in one poorly-sampled haul?
+
+Check results using new function with what I had for loops.
+
+```{r check}
+expect_equal(MLEbin_res_all_years$Year,
+             unlist(lapply(res_all_strata, '[[', 1)))   # can say "year" etc. instead
+expect_equal(MLEbin_res_all_years$xmin,
+             unlist(lapply(res_all_strata, '[[', 3)))
+expect_equal(MLEbin_res_all_years$xmax,
+             unlist(lapply(res_all_strata, '[[', 4)))
+expect_equal(MLEbin_res_all_years$n,
+             unlist(lapply(res_all_strata, '[[', 5)))
+expect_equal(MLEbin_res_all_years$b_l,
+             unlist(lapply(res_all_strata, '[[', 8)))
+expect_equal(MLEbin_res_all_years$b_l_confMin,
+             unlist(lapply(res_all_strata, '[[', 9)))
+expect_equal(MLEbin_res_all_years$b_l_confMax,
+             unlist(lapply(res_all_strata, '[[', 10)))
+```
+All good - so results from function match my original loop.
+
+```{r bw}
+# Had thought might need the standard error for weighted linear regression - actually prob don't
+#  need for hake analyses so comment out for now. Calculate the b_w also
+MLEbin_res_all_years = tibble::as_tibble(MLEbin_res_all_years)
+MLEbin_res_all_years = dplyr::mutate(MLEbin_res_all_years,
+                                     #b_l_stdErr = (abs(b_l_confMin - b_l) +
+                                     #              abs(b_l_confMax - b_l))/(2*1.96),
+                                     b_w = b_l_to_b_w(b_l),
+                                     b_w_confMin = b_l_to_b_w(b_l_confMin),
+                                     b_w_confMax = b_l_to_b_w(b_l_confMax))
+
+MLEbin_res_all_years
+```
+
+Now to plot the results though time (the rename is just putting the standard
+column names back in for the automated plot):
+```{r timeseries, fig.width=7.5, fig.height=6, eval=FALSE}
+res = timeSerPlot(rename(MLEbin_res_all_years,
+                         b = b_l,
+                         confMin = b_l_confMin,
+                         confMax = b_l_confMax),
+                  legName = "(a) MLEbins",
+#                  yLim = c(-2.2, -0.9),
+                  xLab = "Year",
+                  method = "MLEbins",
+                  legPos = "bottomleft",
+                  weightReg = TRUE,
+                  xTicksSmallInc = 1,
+                  yTicksSmallInc = 1,
+                  doRegression = FALSE)
+```
+
+Now plot the estimated hake recruitments of age-0's for each year against the
+corresponding $b_l$, and add the uncertainties.
+
+
+```{r, plotrecbfunc}
+plot_b_recruitment <- function(b_tibble,    # tibble with Year, b_l,
+                                        # b_l_confMin, b_l_confMax, # could add
+                                        # switch for b_w also
+                               recruitment_tibble,   # needs to be same years,
+                                        # and have year, low, median, high
+                               conf_col = "grey",
+                               label_col = "red",
+                               xlim = c(-14, 0),    # excludes 2019 which is way off
+                               ylim = c(0, 1.1),     # to include max of 2023
+                                        # credible interval
+                               xlab = "Length size spectrum exponent, b_l",  # TODO subscript properly
+                               ylab = "Estimated age-0 hake recruitment scaled by 2010 value",
+                               pch = 20,
+                               cex = 1,
+                               text_cex = 0.7,        # for year labels
+                               adj = c(-0.15, -0.3),  # adjustment for labelling years
+                               ...){
+  plot(b_tibble$b_l,
+     recruitment_tibble$median,
+     xlim = xlim,
+     xlab = xlab,
+     ylab = ylab,
+     pch = pch,
+     cex = cex)
+
+  # Confidence intervals for b_l
+  segments(x0 = b_tibble$b_l_confMin,
+           y0 = recruitment_tibble$median,
+           x1 = b_tibble$b_l_confMax,
+           y1 = recruitment_tibble$median,
+           col = conf_col)
+
+  # Credible intervals for recruitment
+  segments(x0 = b_tibble$b_l,
+           y0 = recruitment_tibble$low,
+           x1 = b_tibble$b_l,
+           y1 = recruitment_tibble$high,
+           col = conf_col)
+  # Add labels
+  text(b_tibble$b_l,
+       recruitment_tibble$median,
+       recruitment_tibble$year,
+       adj = adj,
+       col = label_col,
+       cex = text_cex)
+}
+
+```
+
+
+## Go through ISD plots to decide which years should be excluded
+
+So go through the ISD plots, taking into account sample size `n`. Comments on
+each year (with exclude if warranted, else include):
+
+2004 - could remove single big value, but need justification, include
+
+2005 - n = 16, exclude
+
+2006 - n = 24, exclude
+
+2007 - does have the hump of larger sizes
+
+2008 - slight hump of larger sizes
+
+2009 - good fit
+
+2010 - slightly weird fit, with one somewhat larger size
+
+2011 - great fit, very slight hump of larger sizes
+
+2012 - good fit though strange gap before large set of sizes
+
+2013 - pretty good fit
+
+2014 - slightly unusual fit, with a bit of a hump
+
+2015 - goodish fit, with 'missing' larger sizes
+
+2016 - very nice fit, $n$ almost 50,000
+
+2017 - good fit, with one somewhat larger size
+
+2018 - good fit, with 'missing' larger sizes
+
+2019 - weird fit because only four bins, because mode is so high - strange one,
+exclude (but look into more?)
+
+2020 - $n=10$ so exclude (explains the large confidence intervals in the plot
+with it included)
+
+2021 - kind of funny, though need to redo without bins TODO. Looks like a small
+sample may have got scaled up a lot?
+
+This suggests
+excluding analyses for years:
+```{r excludeyears}
+years_exclude <- c(2005, 2006, 2019, 2020)
+```
+
+## Show the plot for all years
+
+```{r, plotrecruitments}
+hake_recruitment_over_2010_in_full_years <- filter(hake_recruitment_over_2010,
+                                                   year %in% full_years)
+
+# TODO add check to function that years are the same
+plot_b_recruitment(filter(MLEbin_res_all_years,
+                          !Year %in% years_exclude),
+                   filter(hake_recruitment_over_2010_in_full_years,
+                          !year %in% years_exclude),
+                   xlim = c(-14,0))
+```
+
+So, what does this mean. Large recruitment years ($> 20\%$ of the 2010
+recruitment) always seem to have a higher $b_l$. Note that 2021 has a long tail
+of uncertainty (reaching quite high), but that's because it will have only been
+observed in one year of commercial data.
+
+A high $b_l$ seems necessary for high recruitment, but is not sufficient. Kind
+of makes sense -- other things can happen during further life-history stages.
+
+But, a low $b_l$ seems to imply low recruitment. This could be a heads up for
+advice.
+
+Of course, this may well all fall apart with further analyses, validation, and more
+data.
+
+In terms of the assessment done at the start of 2023, we have to assume recruitment
+for recruitment in 2022 (which hasn't been observed in data in
+the assessment model, but is what we can calculate $b_l$ for, hopefully in a
+timely fashion) and 2023 (which are just being spawned while we are doing the
+2023 assessment). The assumption is based on the stock recruitment curve with a
+large uncertainty, and is shown in blue on the next plot.
+
+```{r plotrecsandassumed}
+plot_b_recruitment(filter(MLEbin_res_all_years,
+                          !Year %in% years_exclude),
+                   filter(hake_recruitment_over_2010_in_full_years,
+                          !year %in% years_exclude),
+                   xlim = c(-14,0))
+
+# TODO Add to function, but for now just do here:
+x_loc <- 0.3  # -14
+segments(x0 = x_loc,
+         y0 = filter(hake_recruitment_over_2010, year == 2023)$low,
+         x1 = x_loc,
+         y1 = filter(hake_recruitment_over_2010, year == 2023)$high,
+         col = "blue")
+
+points(x_loc,
+       filter(hake_recruitment_over_2010, year == 2023)$median,
+       col = "blue",
+       pch = 20)
+```
+
+## Moving $b_l$ vs. $b_w$ figures to here.
+
+```{r blbwrelationship}
+# par(mfrow=c(2,1))
+
+b_l_vec <- seq(-10, 0, 0.1)
+
+plot(b_l_vec,
+     b_l_to_b_w(b_l_vec),
+     xlab = "b_l",
+     ylab = "b_w",
+     ylim = range(b_l_vec))
+
+b_w_vec = seq(-4, 0, 0.1)
+
+plot(b_w_vec,
+     b_w_to_b_l(b_w_vec),
+     xlab = "b_w",
+     ylab = "b_l",
+     xlim = range(b_w_to_b_l(b_w_vec)))
+```
+
+So those are pretty straight, suggesting indeed a linear relationship. Can
+calculate derivative analytically. TODO in other .tex write up.
+
+```{r exit, eval=FALSE}
+knitr::knit_exit()
+```

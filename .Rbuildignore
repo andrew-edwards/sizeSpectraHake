@@ -9,3 +9,5 @@ notes/*
 ^README\.Rmd$
 vignettes/
 ^codecov\.yml$
+
+report/*

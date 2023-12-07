@@ -1,0 +1,68 @@
+##' Convert a tibble of counts per bin into a histogram list object and create 0
+##' counts for missing bins.
+##'
+##' Can then use `plot()` which calls `plot.histogram()`. Without the 0 counts for missing bins
+##' `plot.histogram()` does not plot counts because bins appear to have unequal widths.
+##'
+##' @param counts_per_bin tibble with columns `binCount`, `binMid`, `binMin`,
+##'   `binMax`. Had thought about simplifying down to just `binMid`, but need to
+##'   specify the bin endpoints (as empty bins don't usually get included here).
+##' @param bin_width bin width for the data set. Might not be
+##'   `min(diff(counts_per_bin$binMid))` as that will missing `binMid` for empty
+##'   bins, so need to create those here. Function does check that the data are
+##'   consistent with `bin_width`, TODO i.e. TODO
+##' @return a histogram list object with components (see `?hist`):
+##'  - `breaks`
+##'  - `mids`
+##'  - `counts`
+##'  - `xname`  TODO make this the default `"Body length (x), mm"`,
+##'  - `equidist` TRUE since have equal bin widths
+##' @export
+##' @author Andrew Edwards
+##' @examples
+##' \dontrun{
+##' counts_per_bin_example
+##' make_hist(counts_per_bin_example)
+##' }
+make_hist <- function(counts_per_bin,
+                      bin_width = 1,
+                      eps = 0.0000001){
+
+  # Check the bin widths are compatible with (i.e. multiples of) bin_width
+  bin_diffs_remainder <- diff(counts_per_bin$binMid) %% bin_width
+  bin_diffs_remainder_max <- max(abs(bin_diffs_remainder))
+
+  if(bin_diffs_remainder_max > eps){
+    stop("Need counts_per_bin$binMid to all be multiples of bin_width")
+  }
+
+  ## if(!expect_equal(bin_diffs_remainder_max,
+  ##                  0)){
+  ##   stop("Need counts_per_bin$binMid to all be multiples of bin_width")
+  ## }
+
+  all_bins <- tibble::tibble(binMid = seq(min(counts_per_bin$binMid),
+                                          max(counts_per_bin$binMid),
+                                          bin_width)) %>%
+  dplyr::mutate(binMin = binMid - bin_width/2,
+                binMax = binMid + bin_width/2)
+
+  counts_all <- dplyr::right_join(counts_per_bin,
+                                  all_bins,
+                                  by = c("binMid",
+                                         "binMin",
+                                         "binMax")) %>%
+    tidyr::replace_na(list(binCount = 0)) %>%
+    dplyr::arrange(binMin)
+
+  counts_list <- list(breaks = c(counts_all$binMin,
+                                 max(counts_all$binMax)),
+                      mids = counts_all$binMid,
+                      counts = counts_all$binCount,
+                      xname = "Body length (x), mm",
+                      equidist = TRUE)
+
+  class(counts_list) <- c("histogram", class(counts_list))
+
+  counts_list
+}
