@@ -1,8 +1,9 @@
 ##' Converting between length- and weight-based size spectrum exponents
-
+##'
 ##' Will write out the math in a write up, but the equations are:
-##' b_l = \beta (b_w + 1) - 1
-##' b_w = (b_l + 1) / \beta - 1
+##' \deqn{b_l = \beta (b_w + 1) - 1}
+##' and
+##' \deqn{b_w = (b_l + 1) / \beta - 1}
 ##' @param b_l exponent for a length-based individual size spectrum
 ##' @param beta exponent of the length-weight relationship for the species in
 # question
@@ -18,7 +19,7 @@ b_l_to_b_w <- function(b_l,
  (b_l + 1) / beta - 1
 }
 
-##' @inheritParams b_l_to_b_w
+##' @rdname b_l_to_b_w
 ##' @param b_w exponent for a weight-based individual size spectrum
 ##' @return the `b_l` exponent for the length-based individual size spectrum
 ##' @export
