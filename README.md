@@ -1,2 +1,19 @@
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
 # sizeSpectraHake
-R package for analysing the hake data in a size spectra context
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+The goal of sizeSpectraHake is to …
+
+## Installation
+
+You can install the development version of sizeSpectraHake from
+[GitHub](https://github.com/) with:
+
+``` r
+# install.packages("devtools")
+devtools::install_github("andrew-edwards/sizeSpectraHake")
+```

@@ -1,0 +1,10 @@
+^\.github$
+
+^.*\.Rproj$
+^\.Rproj\.user$
+
+data-raw/*
+
+notes/*
+^README\.Rmd$
+vignettes/
