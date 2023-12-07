@@ -8,3 +8,4 @@ data-raw/*
 notes/*
 ^README\.Rmd$
 vignettes/
+^codecov\.yml$
