@@ -41,7 +41,9 @@ Fit all the years of data using MLEbin method
 }
 \examples{
 \dontrun{
-
+# see .Rmd file
+res_all_strata <- fit_all_years(raw_simp_prop,
+                    bin_width_each_year = bin_width_each_year)
 }
 }
 \author{
