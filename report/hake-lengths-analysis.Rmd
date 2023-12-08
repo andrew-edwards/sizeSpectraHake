@@ -495,7 +495,8 @@ res_all_strata <- fit_all_years(raw_simp_prop,
                                 bin_width_each_year = bin_width_each_year)
 
 # For testing:
-res_just_2021 <-  fit_all_years(filter(raw_simp_prop, year == 2021),
+res_just_2021 <-  fit_all_years(filter(raw_simp_prop,
+                                       year == 2021),
                                 bin_width_each_year = bin_width_each_year)
 ```
 
@@ -511,7 +512,33 @@ plot(res_all_strata,
      par.cex = 0.8,)    # For ISD plot
 ```
 
-Just 2021 for debugging histogram (running in R console)
+Just 2021 for debugging histogram (running in R console), first plot below now
+gives an error (as I put a check in `make_hist()`, so dig into that first.
+
+```{r makehist2021}
+tt <- make_hist(res_just_2021[[1]]$counts_per_bin,
+               bin_width = res_just_2021[[1]]$bin_width)
+# But this is true, thought it might not be (and is why histograms don't end up overlapping):
+expect_equal(res_just_2021[[1]]$counts_per_bin[-(1:5), ],
+             res_just_2021[[1]]$counts_per_bin_desc)
+
+```
+
+HERE HERE
+```{r just2021almostworking}
+# mh_all <- make_hist(res_just_2021[[1]]$counts_per_bin, bin_width = 0.01)
+
+
+
+col_hist <- ifelse(res_just_2021[[1]]$counts_per_bin$binMid < min(res_just_2021[[1]]$counts_per_bin_desc$binMid), "grey", "red")
+plot(mh_all,
+               bin_width = res_just_2021[[1]]$bin_width),
+     col = col_hist, border = col_hist, xlim = c(28, 28.5))
+# Not quite as colours get assigned to empty bins also, but think can adjust
+# that in make_hist
+
+```
+
 ```{r just2021}
 plot(make_hist(res_just_2021[[1]]$counts_per_bin,
                bin_width = res_just_2021[[1]]$bin_width),
@@ -521,6 +548,7 @@ plot(make_hist(res_just_2021[[1]]$counts_per_bin_desc,
      add = TRUE,
      col = "red", border = "red")  # TODO this doesn't do 28.19 binMid in red,
 # but leaves it as grey
+
 
 # Try just the narrow range but only desc, 28.19 disappears!!:
 plot(make_hist(res_just_2021[[1]]$counts_per_bin_desc,
@@ -555,8 +583,6 @@ test_small_desc <- make_hist(res_just_2021[[1]]$counts_per_bin_desc[1:8,],
                   bin_width = res_just_2021[[1]]$bin_width)
 test_small_desc$mids
 test_small_desc$counts
-
-
 ```
 
 ```{r exit1}
