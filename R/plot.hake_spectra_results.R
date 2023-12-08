@@ -35,8 +35,6 @@ plot.hake_spectra_results <- function(res,
     par(mai = mai_orig)     # Since gets reset by ISD_bin_plot(). Should clean
                             # up that function in sizeSpectra.
 
-    border_col = "black"
-
     # Have to make the full histogram (with 0 counts here) to get the colours
     #  right, but ISD plot (I think) requires no 0 counts (maybe they get ignored).
     make_hist_full <- make_hist(res[[i]]$counts_per_bin,
@@ -46,18 +44,19 @@ plot.hake_spectra_results <- function(res,
                        "grey",
                        "red")
 
+    border_col = "black"
+    # If too fine then don't have black borders
+    if(res[[i]]$bin_width < 0.1){
+      border_col = col_hist
+    }
+
+
+
     plot(make_hist_full,
          main = all_years[i],
          xlim = xlim_global,
          col = col_hist,
-         border = col_hist)
-
-    # Can delete TODO
-#    plot(make_hist(res[[i]]$counts_per_bin_desc,
-#                   bin_width = res[[i]]$bin_width),
-#         add = TRUE,
-#         col = "red",
-#         border = border_col)
+         border = border_col)
 
     ISD_bin_plot_nonoverlapping(binValsTibble = res[[i]]$counts_per_bin_desc,
                                 b.MLE = res[[i]]$b_l,

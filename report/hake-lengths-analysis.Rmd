@@ -9,7 +9,7 @@ date: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
   collapse = TRUE,
-  comment = "#>",
+  comment = "",
   fig.width = 10,
   fig.height = 8
 )
@@ -284,150 +284,28 @@ bin_width_each_year <- tibble::tibble(year = min(raw$YEAR):max(raw$YEAR)) %>%
 if(max(raw$YEAR) > 2021) stop("Need to check bin width of new data")
 ```
 
-## First do one year and just strata C
 
-```{r, 2004C}
-data_2004_C <- filter(raw_simp_prop,
-                      year == 2004)
-#                      strata == "C")
+## Functionalise calculations for each year -- have confirmed get same results as original loop
 
-#counts_per_length_value <- select(data_2004_C,
-#                                  x,
-#                                  scaled_counts)
+Going to do calculations in general function, then plot
+all the figures for each year. Data to use is `raw_simp_prop` as that has the
+scaled counts already calculated.
 
-counts_per_bin <- summarise(group_by(data_2004_C,
-                                     x),
-                            binCount = sum(scaled_counts)) %>%
-  mutate(binMid = x,
-         binMin = binMid - 0.5,
-         binMax = binMid + 0.5) %>%  # Assume these are midpoints, but TODO check
-  select(-"x")
+```{r fitallyearsfunction}
+res_all_years <- fit_all_years(raw_simp_prop,
+                               bin_width_each_year = bin_width_each_year)
+# plot(res_all_years, par.cex = 0.8,) in next chunk but not echoed
 
-counts_per_bin         # Bins and the counts in each bin
 ```
 
-Want to only fit the descending limb, though a lognormal might fit the whole
-thing.
+\clearpage
 
-```{r, descending}
-max_ind <- which.max(counts_per_bin$binCount)
-
-# ACTUALLY WRONG (see loop, which deals with max_ind = 1), but keep as good for
-# testing. Loop results don't match this example!
-binned_desc <- counts_per_bin[-(1:(max_ind-1)), ]  # desc = descending
-
-plot(counts_per_bin$binMid,
-     counts_per_bin$binCount,
-     type="h")
-
-points(binned_desc$binMid,
-       binned_desc$binCount,
-       type="h",
-       col = "red")
-# Fine for now, could do a better histogram using barplot (leaves gaps though,
-# need histogram).
-# web example:
-# ggplot2::qplot(bin, data=cbind(bins,counts), weight=counts, geom="histogram")
-# qplot deprecated, quickly trying this but binMid not found. Sticking with base.
-# ggplot2::ggplot(counts_per_bin, data = cbind(binMid, binCount), weight =
-#        binCount, geom = "histogram")
+```{r, plotall, fig.pos = 'p', fig.height = 6.9, echo=FALSE}
+plot(res_all_years,
+     par.cex = 0.8,)    # For ISD plot
 ```
 
-Think this was experimental and can probably be deleted.
-```{r, histplot}
-# Figure out then generalise more
-counts_hist <- HistogramTools::PreBinnedHistogram(
-                                 breaks = c(counts_per_bin$binMin,
-                                            counts_per_bin$binMax[nrow(counts_per_bin)]),
-                                 counts = counts_per_bin$binCount,
-                                 xname = "Body length (x), mm")  # returns hist object
-# But we need to manually fill in empty bins, which is why this does density not count:
-plot(counts_hist)
-c(counts_per_bin$binMin, counts_per_bin$binMax[nrow(counts_per_bin)]) %>% diff()
-
-
-
-all_bins <- tibble::tibble(binMid = seq(min(counts_per_bin$binMid),
-                                        max(counts_per_bin$binMid),
-                                        1)) %>%   # TODO generalise
-  mutate(binMin = binMid - 0.5,
-         binMax = binMid + 0.5)       # TODO generalise those also
-
-counts_all <- dplyr::right_join(counts_per_bin,
-                                all_bins,
-                                by = c("binMid",
-                                       "binMin",
-                                       "binMax")) %>%
-  tidyr::replace_na(list(binCount = 0)) %>%
-  arrange(binMin)
-
-counts_all %>% as.data.frame()
-
-counts_list <- list(breaks = c(counts_all$binMin,
-                               max(counts_all$binMax)),
-                    mids = counts_all$binMid,
-                    counts = counts_all$binCount,
-                    xname = "Body length (x), mm",
-                    equidist = TRUE)
-class(counts_list) <- c("histogram", class(counts_list))
-counts_list
-plot(counts_list) # plots the usual histogram
-```
-
-Now created function `make_hist()` to do that.
-
-TODO change names here, when delete the above
-```{r countsfromfn}
-counts_list_from_fn <- make_hist(counts_per_bin)
-expect_equal(counts_list, counts_list_from_fn)
-
-plot(counts_list_from_fn, main = "2004")
-```
-
-That worked. Now create the descending limb only (though here should have been
-the same but had a mistake earlier; will try a different year for the example TODO).
-```{r descfromfn}
-binned_desc_from_fn <- make_hist(binned_desc)
-plot(counts_list_from_fn, main = "2004")
-plot(binned_desc_from_fn, add = TRUE, col = "red")
-```
-
-Now fit the PLB distribution using the MLEbin method.
-The fitting function takes the binned data as two vectors (the bin breaks
-and the counts in each bin), extracted from `binned_desc`.
-
-Fit based on just tibble: (have adapted into all years loop later)
-```{r tibble}
-MLEbin_res <-  calcLike(negLL.fn = negLL.PLB.binned,
-                        p = -1.5,
-                        w = c(dplyr::pull(binned_desc, binMin),
-                              dplyr::pull(binned_desc, binMax)[nrow(binned_desc)]),
-                            # all minima plus max of final bin
-                        d = dplyr::pull(binned_desc, binCount),
-                        J = nrow(binned_desc),   # = num.bins
-                        vecDiff = 1)             # increase this if hit a bound
-```
-
-The `NA/Inf replaced by maximum positive value` warnings are fine - the
-likelihood function is blowing up in a very unlikely region of parameter
-space.
-
-### Plot the data and the fit like in MEPS Fig. 7, using tibble method
-
-Real data can either input to the plotting function in the above form - a vector `binBreaks`
-of breakpoints and a vector `binCounts` of counts in each bin, or as a tibble.
-
-If you prefer keeping your binned data as a tibble, then you can use the tible
-in the call to the plotting function (though you do still need to input the data
-as two vectors in the `calcLike` call above). This gives the same figures:
-```{r, plottib, fig.width = 5.36, fig.height = 8}
-ISD_bin_plot_nonoverlapping(binValsTibble = binned_desc,
-                            b.MLE = MLEbin_res$MLE,
-                            b.confMin = MLEbin_res$conf[1],
-                            b.confMax = MLEbin_res$conf[2],
-                            yBig.inc = 10000,
-                            xLab = "Body length (x), mm")
-```
+Caption for ISD plot:
 
 The y-axis is (a) linear and (b) logarithmic. For each bin, the horizontal green
 line shows the range of body lengths of that bin, with its value
@@ -447,24 +325,31 @@ The text
 in (a) gives the MLE for the length size-spectrum exponent
 $b$, and the sample size $n$.
 
-TODO (adapting from MEPS vignette): For example, the first bin is for lengths
-between `r binned_desc[1, "binMin"]` and `r binned_desc[1, "binMax"]` mm, and
-countains a count of `r f(pull(binned_desc, "binCount")[1], 1)` individuals. We don't know
+```{r caption}
+caption_index <- 1   # index to use for detailed captions
+
+```
+TODO (adapting from MEPS vignette; double check the numbers): For example, the first bin is for lengths
+between `r res_all_strata[[caption_index]]$counts_per_bin_desc$binMin[1]` and `r res_all_strata[[caption_index]]$counts_per_bin_desc$binMax[1]` mm, and
+countains a count of `r f(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount[1])` individuals. We don't know
 how those individual's lengths are distributed within the bin. The green line on
 the y-axis illustrates that the number of individuals $\geq$ the minimum of the
-bin (`r binned_desc[1, "binMin"]` mm) is `r f(sum(binned_desc$binCount), 1)`, namely
+bin (`r res_all_strata[[caption_index]]$counts_per_bin_desc$binMin[1]` mm) is
+`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount), 1)`, namely
 all the individuals because this is the minimum length in the data. The grey
 shaded area shows the uncertainty -- the number (on the y-axis) of possible individual individuals with
 body mass $\geq$ any x-value within the bin is between
-`r f(sum(binned_desc$binCount) - binned_desc$binCount[1], 1)`
+`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount) - res_all_strata[[caption_index]]$counts_per_bin_desc$binCount[1], 1)`
 and
-`r f(sum(binned_desc$binCount), 1)` (all individuals in the bin could be the smallest
+`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount), 1)`
+(all individuals in the bin could be the smallest
 length within the bin or the highest).
 
-Clearly that final right-hand value looks like an outlier, and it is just for
+
+For 2004: Clearly that final right-hand value looks like an outlier, and it is just for
 one fish:
 ```{r outlier}
-tail(binned_desc)
+tail(res_all_strata[[caption_index]]$counts_per_bin_desc)
 ```
 We could go back and try removing, but that's a little arbitrary for now.
 
@@ -477,116 +362,16 @@ or, going the other way,
 
 $b_l = \beta (b_w + 1) - 1$
 
+
+```{r exit1}
+knitr::knit_exit()
+```
+
+Do this when have all saved:
 Assuming $\beta = 3.1802$ for now:
 ```{r, bweight}
 b_weight <- b_l_to_b_w(MLEbin_res$MLE)
 b_weight
-```
-
-## Functionalise calculations for each year (just strata C) -- have confirmed get same results as original loop
-
-Going to do calculations first in a loop (or maybe general function), then plot
-all the figures for each year. Data to use is `raw_simp_prop` as that has the
-scaled counts already calculated.
-
-
-```{r fitallyearsfunction}
-res_all_strata <- fit_all_years(raw_simp_prop,
-                                bin_width_each_year = bin_width_each_year)
-
-# For testing:
-res_just_2021 <-  fit_all_years(filter(raw_simp_prop,
-                                       year == 2021),
-                                bin_width_each_year = bin_width_each_year)
-```
-
-Create plotting function for `hake_spectra_results`.
-```{r plothakeres}
-```
-
-\clearpage
-
-```{r, plotone, fig.pos = 'p', fig.height = 6.9, echo=FALSE}
-plot(res_all_strata,
-     years = 2004:2020,  # exclude 2021 until fixed it
-     par.cex = 0.8,)    # For ISD plot
-```
-
-Just 2021 for debugging histogram (running in R console), first plot below now
-gives an error (as I put a check in `make_hist()`, so dig into that first.
-
-```{r makehist2021}
-tt <- make_hist(res_just_2021[[1]]$counts_per_bin,
-               bin_width = res_just_2021[[1]]$bin_width)
-# But this is true, thought it might not be (and is why histograms don't end up overlapping):
-expect_equal(res_just_2021[[1]]$counts_per_bin[-(1:5), ],
-             res_just_2021[[1]]$counts_per_bin_desc)
-
-```
-
-HERE HERE
-```{r just2021almostworking}
-# mh_all <- make_hist(res_just_2021[[1]]$counts_per_bin, bin_width = 0.01)
-
-
-
-col_hist <- ifelse(res_just_2021[[1]]$counts_per_bin$binMid < min(res_just_2021[[1]]$counts_per_bin_desc$binMid), "grey", "red")
-plot(mh_all,
-               bin_width = res_just_2021[[1]]$bin_width),
-     col = col_hist, border = col_hist, xlim = c(28, 28.5))
-# Not quite as colours get assigned to empty bins also, but think can adjust
-# that in make_hist
-
-```
-
-```{r just2021}
-plot(make_hist(res_just_2021[[1]]$counts_per_bin,
-               bin_width = res_just_2021[[1]]$bin_width),
-     xlim = c(28, 28.5))
-plot(make_hist(res_just_2021[[1]]$counts_per_bin_desc,
-               bin_width = res_just_2021[[1]]$bin_width),
-     add = TRUE,
-     col = "red", border = "red")  # TODO this doesn't do 28.19 binMid in red,
-# but leaves it as grey
-
-
-# Try just the narrow range but only desc, 28.19 disappears!!:
-plot(make_hist(res_just_2021[[1]]$counts_per_bin_desc,
-               bin_width = res_just_2021[[1]]$bin_width),
-     xlim = c(28, 28.5),
-          col = "red", border = "red")
-
-test <- make_hist(res_just_2021[[1]]$counts_per_bin,
-                  bin_width = res_just_2021[[1]]$bin_width)
-# test$breaks[1:22]
-test$mids[1:21]
-test$counts[1:21]
-
-test_desc <- make_hist(res_just_2021[[1]]$counts_per_bin_desc,
-                  bin_width = res_just_2021[[1]]$bin_width)
-# est_desc$breaks[1:9]
-test_desc$mids[1:8]
-test_desc$counts[1:8]
-# wtf the 28.19 value is now 0!!!
-sum(test$counts)
-sum(test$counts[1:13])
-sum(test_desc$counts)   # Have lost way more than just the first 75. wtf.
-
-# HERE HERE - the one after second 2048.75 disappears when using desc. Think
-# it's to do with right_join having binMin and binMax, maybe remove them first.
-test_small <- make_hist(res_just_2021[[1]]$counts_per_bin[1:13,],
-                  bin_width = res_just_2021[[1]]$bin_width)
-test_small$mids
-test_small$counts
-
-test_small_desc <- make_hist(res_just_2021[[1]]$counts_per_bin_desc[1:8,],
-                  bin_width = res_just_2021[[1]]$bin_width)
-test_small_desc$mids
-test_small_desc$counts
-```
-
-```{r exit1}
-knitr::knit_exit()
 ```
 
 
@@ -706,19 +491,19 @@ Check results using new function with what I had for loops.
 
 ```{r check}
 expect_equal(MLEbin_res_all_years$Year,
-             unlist(lapply(res_all_strata, '[[', 1)))   # can say "year" etc. instead
+             unlist(lapply(res_all_years, '[[', 1)))   # can say "year" etc. instead
 expect_equal(MLEbin_res_all_years$xmin,
-             unlist(lapply(res_all_strata, '[[', 3)))
+             unlist(lapply(res_all_years, '[[', 3)))
 expect_equal(MLEbin_res_all_years$xmax,
-             unlist(lapply(res_all_strata, '[[', 4)))
+             unlist(lapply(res_all_years, '[[', 4)))
 expect_equal(MLEbin_res_all_years$n,
-             unlist(lapply(res_all_strata, '[[', 5)))
+             unlist(lapply(res_all_years, '[[', 5)))
 expect_equal(MLEbin_res_all_years$b_l,
-             unlist(lapply(res_all_strata, '[[', 8)))
+             unlist(lapply(res_all_years, '[[', 8)))
 expect_equal(MLEbin_res_all_years$b_l_confMin,
-             unlist(lapply(res_all_strata, '[[', 9)))
+             unlist(lapply(res_all_years, '[[', 9)))
 expect_equal(MLEbin_res_all_years$b_l_confMax,
-             unlist(lapply(res_all_strata, '[[', 10)))
+             unlist(lapply(res_all_years, '[[', 10)))
 ```
 All good - so results from function match my original loop.
 

@@ -31,7 +31,9 @@ make_hist <- function(counts_per_bin,
   # Check the bin widths are compatible with (i.e. multiples of) bin_width
   # Problem is due to floating point resolution, the remainder might be
   # 0.9999*bin_width. So can't just look at the absolute remainder.
+
   bin_diffs_remainder <- diff(counts_per_bin$binMid) %% bin_width
+
   # That gives some just above 0, and some just below bin_width
   # (if bin_width = 1 don't think this happens).
 
@@ -44,24 +46,15 @@ make_hist <- function(counts_per_bin,
 
   all_bins <- tibble::tibble(binMid = seq(min(counts_per_bin$binMid),
                                           max(counts_per_bin$binMid),
-                                          bin_width)) # %>%
-#  dplyr::mutate(binMin = binMid - bin_width/2,
-#                binMax = binMid + bin_width/2)
+                                          bin_width))
 
   counts_all <- dplyr::right_join(counts_per_bin,
                                   all_bins,
                                   by = c("binMid")) %>%
-                                           # "binMin",
-                                           # "binMax")) %>%
     dplyr::mutate(binMin = binMid - bin_width/2,
                   binMax = binMid + bin_width/2) %>%
     tidyr::replace_na(list(binCount = 0)) %>%
     dplyr::arrange(binMin)
-
-  # Need to do make the binMin and binMax there, not before, though I think the
-  # problem is that for the descending ones the breaks come out slightly
-  # differently. Maybe shouldn't call the same function twice, just have a desc
-# option.  HERE HERE
 
   counts_list <- list(breaks = c(counts_all$binMin,
                                  max(counts_all$binMax)),

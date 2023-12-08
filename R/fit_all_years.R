@@ -46,26 +46,6 @@ fit_all_years <- function(raw_simp_prop,
     data_this_year <- filter(raw_simp_prop,
                              year == full_years[i],
                              strata == strata)
-    # This was from working out how to adapt make_hist() for 0.01 bin widths,
-    # realising it stems from 0.01 not being exact in binary. So not changing
-    # anything here.
-    # yy <- filter(raw_simp_prop, year != 2021) %>% mutate(leftover = x %% 1)
-    # max(abs((yy$leftover)))  is 0, so these are all exact.
-    # But for 0.01 bin width:
-    # yy <- filter(raw_simp_prop, year == 2021) %>% mutate(leftover = x %% 0.01)
-    # summary(yy$leftover)
-    # Min.  1st Qu.   Median     Mean  3rd Qu.     Max.
-    # 0.000000 0.000000 0.010000 0.006548 0.010000 0.010000
-    # table(yy$leftover) has values in the middle like this:
-    # 2.72698530423554e-15  2.7373936450914e-15 2.74086309204336e-15
-    #               1                    1                    1
-    # 3.63598040564739e-15 3.68455266297474e-15 3.76088049591772e-15
-    #                2                    1                    1
-    # 4.30905311432639e-15   0.0099999999999918  0.00999999999999181
-    #                1                    1                    1
-    # 0.00999999999999234  0.00999999999999289  0.00999999999999355
-    # i.e. 0.01 can't be represented exactly. So can't make measurements x more
-    # accurate here, have to refine make_hist().
 
     # Bins and the counts in each bin
     counts_per_bin <- summarise(group_by(data_this_year,
@@ -80,6 +60,7 @@ fit_all_years <- function(raw_simp_prop,
     # Check bin widths are what we prescribed in bin_width_each_year
     if(!expect_equal(min(diff(counts_per_bin$binMid)), bin_width)){
       stop(paste0("Double check the value in bin_width_year_year; may have to relax this condition; this failed for year ", full_years[i]))
+
       # Having no adjacent bins with values will cause this to fail, which seems
       # unlikely), but would want to manually look into and then tweak
       # condition. Does not fail for 2021 even with 0.01 mm bins.
