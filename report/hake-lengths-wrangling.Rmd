@@ -19,121 +19,249 @@ knitr::opts_chunk$set(
 library(dplyr)
 library(sizeSpectra)    # Probably need latest version
 library(pacea)
-# load_all()  # maybe best to do manually.
+# load_all()  # Don't need for the wrangling.
 ```
 
-<!-- taken from size-spectra-applications/ hake-lengths-for-pdf.Rmd, to do here
- as a package -->
+Data from the NOAA SWFSC Rockfish Recruitment and Ecosystem Assessment Survey
+(RREAS). Original file from Iain and Hayden (originally from John Field), November 2023 version directly from
+John Field.
 
+Load in the original data set (saving objects as "...orig") and November 2023
+version (saving objects as "...nov23") sent by John
+Field. Wrangle them both the same way, then load into `analysis-orig-C.Rmd`
+etc. files to do the same analyses on each.
 
-HERE TODO next:
-- check plots with .html version - all good execept 2021 histogram
-    - have got working but it's still slightly different
-- then can delete loop non-functionalised version here.
-- Tidy this up then should be able to just repeat functions for Strata C and
-  other strata.
+Given that plotting results highlights issues with the data (such as some being
+to nearest 10 mm not 1 mm -- see notes from John), may end up saving
+various versions of the data and come back here to do additional wrangling.
 
-- relook at this, maybe make appendices for each option (or separate files).
-- functionalise the `MLEbins_res` part
-- look into data carefully, for example 2008 all strata has some very low
-`prop_measured`,
-- aha: late on see lookatme chunk `tt <- filter(raw_simp_prop_new, year == 2008, strata %in%
-  strata_to_keep)` then `filter(tt, prop_measured < 0.01) %>% as.data.frame()`;
-  clear that they're all NC, and see the plot (final set here), clear bumps at
-  30mm, 40mm, and 50mm. Dubious, prob remove NC (such coarseness would be too
-  much - ooh, though MLEbins could cope with it, agh fiddly though).
+Looking at `cpue-length_hake-hayden....csv` from
+Iain (15th May 2023). Don't think have looked at `hake_lenclasses_cpue.csv` as downloaded from Google Drive owned by Ed
+Weber, 10th May 2023.
 
--  Maybe even try all strata separately? Might not be enough data
-though. Separate files may be best - easier to compare.
-- HERE NEXT - do a data wrangling file then separate analysis ones (since can
-  just use functions probably).
-- think might have same issue as Amy's problem -should we really scale up. Can
-  sometimes be extreme.
-
-NOAA SWFSC Rockfish Recruitment and Ecosystem Assessment Survey (RREAS)
-
-In La Jolla I wrote `hake-lengths.Rmd` which produced .html files (saved as
-`hake-lengths.html` and `hake-lengths-strata-C-all-years.html`) and was used as template for
-`hake-length-larvae.Rmd', which was done quickly on the final day. Had used a
-vignette as a template and now converting to a preferable pdf version, and tidying up.
-
-So looking at young-of-the-year. Want to functionalise some of this to then
-easily use for larvae. Also want to use John Field's updated data set, but stick
-with original for now to get this working.
-
-TODO Re-organise filenames a little, though maybe best to functionalise. Also see hake-lengths-larvae.Rmd.
-
-Dataset `hake_lenclasses_cpue.csv` was downloaded from Google Drive owned by Ed
-Weber, 10th May 2023. But first looking at `cpue-length_hake-hayden....csv` from
-Iain (15th May 2023).
-
-TO ASK:
-1. Is there a Cruise/Technical Report I should look at (TODO first search for one).
-
-2. What is effort; seems a little strange that CPUE are all integers. See
-   `sort(unique(raw$CPUE_YOY))`. Oh, I think they were one-hour tows. TODO check.
-
-3. For a length measured as 30 mm, I need to specify a corresponding length
+Waiting for reply: For a length measured as 30 mm, I need to specify a corresponding length
    bin. Should this be 29.5-30.5 mm, or 30-31mm? I've assumed the former but can
    easily change it.
 
+## Load in original raw data
 
-Ideas to come back to:
+Original from La Jolla trip:
 
-- Double check calcs of $b_w$, then plot against
-hake recruitment. Though could just stick with $b_l$, as it's a linear scaling
-and maybe an unnecessary extra step.
-
-- then also do for other strata. And decide on criteria for leaving out some
-of the data.
-
-## Load in raw data - now load in updated data set
-
-Now work through line by line. Likely need the second .csv file also as that has
-`TOTAL_NO`. But I think `EXP` in the new one is the expansion, so 1/`TOTAL_NO`.
 ```{r loadsetdata}
-# Original from La Jolla trip:
-raw <- readr::read_csv("../../size-spectra-applications/calcofi-hake/hake-lengths/cpue-length_hake-hayden's weight file with all fish in an annual super tow.csv") %>%
+raw_orig <- readr::read_csv("../../size-spectra-applications/calcofi-hake/hake-lengths/cpue-length_hake-hayden's weight file with all fish in an annual super tow.csv") %>%
   dplyr::mutate_if(is.character, factor)
 
-raw
+raw_orig
 
-summary(raw)
+summary(raw_orig)
+```
 
-raw_new <-
+`CPUE_YOY` -- the CPUE of young-of-year hake caught in that haul. The rows
+for that haul are only the fish that were measured (sampled), each having a
+length of `STD_LENGTH`.
+
+`WEIGHT` -- not using, think it just the length-weight relationship applied to
+each `STD_LENGTH`.
+
+## Load in updated nov23 raw data
+
+Updated data (including 2022 and 2023) from John Field. Different format so want
+to compare results with original data.
+
+```{r loadnov23}
+raw_nov23 <-
   readr::read_csv("../../size-spectra-applications/calcofi-hake/hake-lengths/rreas-to-2023/hake83to2023lengths.csv") %>%
   dplyr::mutate_if(is.character, factor)
 
-raw_new
+raw_nov23
 
-summary(raw_new)
-
-bin_width_each_year_new <- tibble::tibble(year = min(raw_new$YEAR):max(raw_new$YEAR)) %>%
-  mutate(bin_width = 1)
-
+summary(raw_nov23)
 ```
+
 Each row is a fish (given a `SP_NO`, specimen).
 
-## New data set -- given had already figured out details originally, just filter to what I think we want
+## Define bin widths for each year
 
-Know from below what we ended up needing in `raw_simp_prop`, so just try and
-extract that now and check agrees with the saved version. Not going to use OR or
-WA so just keep the others.
-```{r newdata}
+Define bin widths for each year. Original data had 0.01 mm for 2021, which, as
+John explained, is a bit preliminary and they then save it to 1 mm anyway; so
+nov23 data, and presumably onwards, is all to 1mm. so had to make a tibble
+encompassing all years of data for original data:
+```{r binwidth}
+bin_width_each_year_orig <-
+  tibble::tibble(year = min(raw_orig$YEAR):max(raw_orig$YEAR)) %>%
+  mutate(bin_width = ifelse(year %in% c(2021),
+                            0.01,
+                            1))
+
+bin_width_each_year_nov23 <-
+  tibble::tibble(year = min(raw_nov23$YEAR):max(raw_nov23$YEAR)) %>%
+  mutate(bin_width = 1)
+```
+
+## Validate understanding of data structure
+
+First validate some assumptions to check I understand the data. Just do 2004
+original data first then all years.
+```{r, validate_2004}
+raw_2004_orig <- filter(raw_orig,
+                   YEAR == 2004)
+
+raw_2004_orig
+
+stopifnot(length(unique(raw_2004_orig$CRUISE)) == 1)   # One CRUISE per year
+
+# Check each year-station combination has the same HAUL_NO and CPUE_YOY:
+# Both of these return a warning (I'd prefer an error) about returning more than
+# one line per group. So HAUL_NO and CPUE_YOY not unique per year-station
+# combination. Hayden used YEAR, STRATA, HAUL_NO so try that after.
+raw_2004_summ_a_orig <- summarise(group_by(raw_2004_orig,
+                                           YEAR,
+                                           STATION),
+                                  haul_no = unique(HAUL_NO))#,
+
+raw_2004_summ_a_orig
+
+raw_2004_summ_b_orig <- summarise(group_by(raw_2004_orig,
+                                           YEAR,
+                                           HAUL_NO),
+                                  cpue_yoy = unique(CPUE_YOY))  # No error but has not
+                                                                # grouped by HAUL_NO, only YEAR:
+raw_2004_summ_b_orig
+# Yet:
+length(unique(raw_2004_summ_b_orig$HAUL_NO))   # also has 92 rows. So seems okay,
+                                        # message was curious.
+
+# So seems like multiple hauls at a station, but each HAUL_NO does indeed have a
+# unique CPUE_YOY.
+
+# Each SP_NO is unique, a code for each specimen (individual fish)
+expect_equal(nrow(raw_2004_orig),
+             length(unique(raw_2004_orig$SP_NO)))
+```
+
+That makes more sense. Repeat the essential from above for all data, grouped by year:
+
+```{r validate_all}
+# Doing year-by-year to see when errors (with a warning). Okay: 2004, 2005, ..., 2014, 2017,
+#  2018, 2020, 2021
+# Not okay: 2015, 2016, 2019
+raw_summ_orig <- summarise(group_by(filter(raw_orig,
+                                      YEAR == 2015),
+                               YEAR,
+                               HAUL_NO),
+                      cpue_yoy = unique(CPUE_YOY))
+
+raw_summ_orig
+
+# So 2015 does not have a unique CPUE_YOY for each HAUL_NO. Aha - check STRATA
+# as well (Hayden used in his unique ID for each haul:
+
+# These work for 2015, 2016, 2019.
+raw_XXXX_summ_orig <- summarise(group_by(filter(raw_orig,
+                                                YEAR == 2019),
+                                         YEAR,
+                                         HAUL_NO,
+                                         STRATA),  # Don't get why not grouped by
+                                        # STRATA also
+                                cpue_yoy = unique(CPUE_YOY))
+```
+So each `YEAR-HAUL_NO-STRATA` combination correctly has a unique `CPUE_YOY`;
+hence Hayden used that to assign a `UniqueID`
+
+Check `CPUE_YOY` are all integers (think they are because of one-hour tows; TODO read papers):
+```{r, validatesp}
+expect_equal(sort(unique(raw_orig$CPUE_YOY)) %>%
+             diff() %>%
+             min(),
+             1)
+
+```
+
+Not going to use OR or WA so just keep the others.
+```{r stratakeep}
 strata_to_keep <- c("C", "NC", "S", "SC", "N")
+```
 
-# From below for original data:
-# names(raw_simp_prop)
+## Simplify original data set
+
+```{r, simplify}
+raw_simp_orig <- filter(raw_orig,
+                   STD_LENGTH >= 28,   # TODO check with Iain, he said 28 onwards
+                                       # was > 27 but isn't actually as 0.01mm
+                                       # resolution. Think okay now as nov23 has
+                                       # 1 mm. Of course will get xmin=27.5.
+                   STD_LENGTH < 90,
+                   STRATA %in% strata_to_keep) %>%
+  select(year = YEAR,
+         haul_no = HAUL_NO,
+         strata = STRATA,
+         x = STD_LENGTH,
+         cpue_yoy = CPUE_YOY) %>%
+  mutate(id = paste(year,       # Hayden's id, to make calcs easier
+                    strata,     # than grouping, and to more easily compare any results.
+                    haul_no,
+                    sep = "_")) %>%
+  arrange(year,
+          strata,
+          haul_no)
+
+raw_simp_orig
+
+# One row for each haul:
+raw_simp_totals_orig <- raw_simp_orig %>%
+  group_by(id) %>%
+  summarise(measured_in_haul = n())
+hist(raw_simp_totals_orig$measured_in_haul, breaks = 40)
+# Shows don't have enough data to fit at the haul level - kind of, have to check
+# final 'counts' TODO down below, maybe.
+
+# Calculate proportion of cpue_yoy that were measured, kind of assuming
+#  cpue_yoy is an absolute count of fish, which it seems to be as it's always
+#  integer. If effort is always the same for every tow, then maybe an effort of
+#  1 is just a standard tow, hence there's no scaling (and hence cpue is an
+#  integer; think it's one-hour tow). TODO read papers.
+
+# Then scale the counts up by 1/prop_measured (i.e. if only half the fish in a
+#  haul were measured, then double the count for each size). Easier to see the
+#  consequences of this in results files, as some values get scaled up a lot.
+raw_simp_prop_orig <- left_join(raw_simp_orig,
+                                raw_simp_totals_orig,
+                                by = "id") %>%
+  mutate(prop_measured = measured_in_haul / cpue_yoy,
+         scaled_counts = 1 / prop_measured)
+
+raw_simp_prop_orig
+summary(raw_simp_prop_orig)
+
+# Lengths are not always integers - turns out in 2021 they are to nearest 0.01
+# mm (and maybe later years if get more data).
+sort(unique(raw_simp_prop_orig$x))[1:10]
+
+stopifnot(max(raw_simp_orig$year) == 2021)   # just a check, but will call new
+                                        # data something different anyway (and
+                                        # based wrangling on nov23).
+```
+
+## New data set
+
+Given had already figured out above details, just filter to what we ended up
+needing in `raw_simp_prop_orig`, then compare fitted results (and come back to this
+if needed).
+
+```{r newdata}
+# From above for original data:
+# names(raw_simp_prop_orig)
 # "year"             "haul_no"          "strata"           "x"    # "cpue_yoy"         "id"               "measured_in_haul" "prop_measured"
 # "scaled_counts"
 
-raw_simp_new <- select(raw_new,
+raw_simp_nov23 <- select(raw_nov23,
                        year = YEAR,
                        haul_no = HAUL_NO,
                        strata = STRATA,
                        x = STD_LENGTH,
                        total_no = TOTAL_NO,
-                       number_measured = NMEAS, # TODO I think
+                       number_measured = NMEAS, # TODO double check (if results
+                                        # with orig don't match then look more)
                        exp_value = EXP) %>%
   filter(x >= 28,
          x < 90,
@@ -146,157 +274,68 @@ raw_simp_new <- select(raw_new,
           strata,
           haul_no)
 
-raw_simp_new
+raw_simp_nov23
 
-# Think this is already calc'ed in new data
-# raw_simp_totals_new <- raw_simp_new %>%
+# Think this is already calc'ed in new data; if results don't match with orig
+# then may have to dig into.
+# raw_simp_totals_nov23 <- raw_simp_nov23 %>%
 #  group_by(id) %>%
 #  summarise(measured_in_haul = n())
 
-# Don't think need this from original
-#raw_simp_prop_new <- left_join(raw_simp_new,
-#                           raw_simp_totals_new,
-#                           by = "id") %>%
-#  mutate(prop_measured = measured_in_haul / cpue_yoy,
-#         scaled_counts = 1 / prop_measured)
-
-raw_simp_prop_new <- mutate(raw_simp_new,
+raw_simp_prop_nov23 <- mutate(raw_simp_nov23,
                             prop_measured = number_measured/total_no,
                             scaled_counts = 1 / prop_measured) %>%  # The 1 is 1 obs for each row
   filter(number_measured > 0)
 
-raw_simp_prop_new
-summary(raw_simp_prop_new)
+raw_simp_prop_nov23
+summary(raw_simp_prop_nov23)
 
-stopifnot(max(raw_simp_new$year) == 2023)   # if get new data then need to look at
-                                            # resolution and change code below appropriately
+stopifnot(max(raw_simp_nov23$year) == 2023)   # if get new data then need to
+                                              # double check and change
+                                              # bin_width if needed. Likely all
+                                              # 1 mm though.
 ```
 
 Resolution, all integers:
 
 ```{r resolution}
-length(unique(raw_simp_prop_new$x))
-sort(unique(raw_simp_prop_new$x))
+length(unique(raw_simp_prop_nov23$x))
+sort(unique(raw_simp_prop_nov23$x))
 
-expect_equal(raw_simp_prop_new$exp_value,
-             raw_simp_prop_new$scaled_counts)
+expect_equal(raw_simp_prop_nov23$exp_value,
+             raw_simp_prop_nov23$scaled_counts)
 ```
-Last line gives no error (just strata C right now). Excellent,
-is what I thought.
+Last line gives no error. Excellent, is what I thought.
 
-Should be good to move onto analysis. Doing further down, may not need to make
-names exactly the same as `raw_simp_prop`.
+TODO probably best to make names exactly the same as `raw_simp_prop_orig`.
 
-Check what data are available for each year.
-
-```{r newsummary}
-summary_new <- summarise(group_by(raw_simp_prop_new,
+Check what data are available for each year:
+```{r nov23summary}
+summary_nov23 <- summarise(group_by(raw_simp_prop_nov23,
                                   year,
                                   strata),
                          total_counts = sum(scaled_counts)) %>%
   ungroup()
-summary_new %>% as.data.frame()
+summary_nov23 %>% as.data.frame()
 ```
 
-## Orig data set
+## Save two wrangled data files
 
-`CPUE_YOY` -- the CPUE of young-of-year hake caught in that haul. The rows
-for that haul are only the fish that were measured (sampled), each having a
-length of `STD_LENGTH`.
+Best not to save them as package objects as will get confusing when not committing them.
 
-`WEIGHT` -- not using, think it just the length-weight relationship applied to
-each `STD_LENGTH`.
-
-Data originally from John Field.
-
-## Validate understanding of data structure
-
-First validate some assumptions to check I understand the data. Just do 2004
-first then all years.
-```{r, validate_2004}
-raw_2004 <- filter(raw,
-                   YEAR == 2004)
-
-raw_2004
-
-stopifnot(length(unique(raw_2004$CRUISE)) == 1)   # One CRUISE per year
-# Check each year-station combination has the same HAUL_NO and CPUE_YOY
-
-# Both of these return a warning (I'd prefer an error) about returning more than one line per group. So HAUL_NO and CPUE_YOY not unique per year-station combination. Hayden used YEAR, STRATA, HAUL_NO so try that after.
-raw_2004_summ_a <- summarise(group_by(raw_2004,
-                                      YEAR,
-                                      STATION),
-                             haul_no = unique(HAUL_NO))#,
-
-raw_2004_summ_a
-
-raw_2004_summ_b <- summarise(group_by(raw_2004,
-                                      YEAR,
-                                      HAUL_NO),
-                             cpue_yoy = unique(CPUE_YOY))  # No error but has not
-                                        # grouped by HAUL_NO, only YEAR:
-raw_2004_summ_b
-# Yet:
-length(unique(raw_2004_summ_b$HAUL_NO))   # also has 92 rows. So seems okay,
-                                        # message was curious.
-
-# So seems like multiple hauls at a station, but each HAUL_NO does indeed have a
-# unique CPUE_YOY.
-
-# Each SP_NO is unique, a code for each specimen (individual fish)
-expect_equal(nrow(raw_2004),
-             length(unique(raw_2004$SP_NO)))
+```{r savedata}
+saveRDS(raw_simp_prop_orig, "raw_simp_prop_orig.rds")
+saveRDS(raw_simp_prop_nov23, "raw_simp_prop_nov23.rds")
 ```
 
-That makes more sense. Repeat the essential from above for all data, grouped by year:
-
-```{r validate_all}
-# Doing year-by-year to see when errors (with a warning). Okay: 2004, 2005, ..., 2014, 2017,
-#  2018, 2020, 2021
-# Not okay: 2015, 2016, 2019
-raw_summ <- summarise(group_by(filter(raw,
-                                      YEAR == 2015),
-                               YEAR,
-                               HAUL_NO),
-                      cpue_yoy = unique(CPUE_YOY))
-
-raw_summ
-
-# So 2015 does not have a unique CPUE_YOY for each HAUL_NO. Aha - check STRATA
-# as well (Hayden used in his unique ID for each haul:
-
-# These work for 2015, 2016, 2019.
-raw_XXXX_summ <- summarise(group_by(filter(raw,
-                                           YEAR == 2019),
-                                    YEAR,
-                                    HAUL_NO,
-                                    STRATA),  # Don't get why not grouped by
-                                        # STRATA also
-                      cpue_yoy = unique(CPUE_YOY))
-```
-So each `YEAR-HAUL_NO-STRATA` combination correctly has a unique `CPUE_YOY`;
-hence Hayden used that to assign a `UniqueID`
-
-```{r, validatesp}
-# Each SP_NO is unique, a code for each specimen (individual fish)
-#expect_equal(nrow(raw),
-#             length(unique(raw$SP_NO)))
-# Errors, but not worrying too much as I won't use SP_NO (expect it's year
-# dependent; SP_NO = 1 occurs 5 times, so does 2, so maybe year dependent).
-
-# sort(unique(raw$CPUE_YOY))  # These are all integers, TODO find out what
-# effort is, as kind of strange that integer divided by effort is still integer.
-```
-
-
-## Simplify data to the years we want
+## Some ideas to keep here for reference
 
 Some original ideas I think:
 
 Do lengths from 28 to 89 mm.
 
 Whole coast do 2004 onwards, for just "C" can do all years (i.e. back to
-1994). TODO check the regions though excplicitly. TODO - in `summary_new` below
+1994). TODO check the regions though excplicitly. TODO - in `summary_nov23` below
 it looks like 2001 is okay also.
 
 N only from 2013 onwards, so not much.
@@ -323,473 +362,5 @@ D Rename columns for simplicity.
 
 TODO functionalise with functions early on here, may want to do in a new package.
 
-```{r, simplify}
-raw_simp <- filter(raw,
-                   STD_LENGTH >= 28,   # TODO check with Iain, he said 28 onwards
-                                      # was > 27 but isn't actually as 0.01mm resolution
-                   STD_LENGTH < 90,
-                   STRATA %in% strata_to_keep) %>%
-  select(year = YEAR,
-         haul_no = HAUL_NO,
-         strata = STRATA,
-         x = STD_LENGTH,
-         cpue_yoy = CPUE_YOY) %>%
-  mutate(id = paste(year,       # Hayden's id, to make calcs easier
-                    strata,     # than grouping, and to more easily compare any results.
-                    haul_no,
-                    sep = "_")) %>%
-  arrange(year,
-          strata,
-          haul_no)
-
-raw_simp
-
-# One row for each haul:
-raw_simp_totals <- raw_simp %>%
-  group_by(id) %>%
-  summarise(measured_in_haul = n())
-hist(raw_simp_totals$measured_in_haul, breaks = 40)
-# Shows don't have enough data to fit at the haul level - kind of, have to check
-# final 'counts' TODO down below
-
-# Calculate proportion of cpue_yoy that were measured, kind of assuming
-#  cpue_yoy is an absolute count of fish, which it seems to be as it's always
-#  integer. If effort is always the same for every tow, then maybe an effort of
-#  1 is just a standard tow, hence there's no scaling (and hence cpue is an
-#  integer). TODO check this with Iain/John.
-# Then scale the counts up by 1/prop_measured (i.e. if only half the fish in a
-#  haul were measured, then double the count for each size)
-raw_simp_prop <- left_join(raw_simp,
-                           raw_simp_totals,
-                           by = "id") %>%
-  mutate(prop_measured = measured_in_haul / cpue_yoy,
-         scaled_counts = 1 / prop_measured)
-
-raw_simp_prop
-summary(raw_simp_prop)
-
-# hist(raw_simp_prop$measured_in_haul, breaks = 40)   # Shows won't have enough
-# hist(raw_simp_prop$scaled_counts, breaks = 40)   # Shows won't have enough
-# TODO do something similar at the haul level (?)
-
-# Lengths are not always integers - turns out in 2021 they are to nearest 0.01
-# mm (and maybe later years if get more data).
-sort(unique(raw_simp_prop$x))[1:10]
-# summarise(group_by(raw_simp,
-#                   year,
-#                   x)) %>%
-#  as.data.frame()
-
-stopifnot(max(raw_simp$year) == 2021)   # if get new data then need to look at
-                                        # resolution and change code below appropriately
-
-```
 Last (commented code) shows that only 2021 has lengths to 0.01 mm. So deal with that
 separately below.
-
-## Saving the original data set
-
-Doing this after running the above with the original data. So then have the
-data that get used in the analysis saved as an object to then easily
-compare. Having run it and saved now commenting out to not overwrite. Then use
-the above code to work on the new data set.
-
-TODO redo this - this was only for strata C, and didn't have early years. Now
-doing new code for new data, so this isn't so needed, but still useful.
-```{r saving}
-# raw_simp_prop_orig <- raw_simp_prop
-# use_data(raw_simp_prop_orig)
-
-```
-
-## Define bin widths for each year
-
-Needs to be general, so make a tibble encompassing all years of data;
-```{r binwidth}
-bin_width_each_year <- tibble::tibble(year = min(raw$YEAR):max(raw$YEAR)) %>%
-  mutate(bin_width = ifelse(year %in% c(2021),
-                            0.01,
-                            1))
-
-if(max(raw$YEAR) > 2021) stop("Need to check bin width of new data")
-```
-
-
-## Functionalise calculations for each year -- have confirmed get same results as original loop
-
-Going to do calculations in general function, then plot
-all the figures for each year. Data to use is `raw_simp_prop` as that has the
-scaled counts already calculated.
-
-TODO Can just do strata C and then all strata. First check that whole coast is
-only appropriate for 2004 onwards, and C back to 1994.
-
-TODO `fit_all_years` should automatically take into account years based on
-strata choice. Maybe not though as should make it excplicit each time.
-```{r fitallyearsfunction}
-res_all_years <- fit_all_years(raw_simp_prop,
-                               strata = strata_to_keep,
-                               bin_width_each_year = bin_width_each_year)
-# plot(res_all_years, par.cex = 0.8,) in next chunk but not echoed
-
-```
-
-\clearpage
-
-```{r, plotall, fig.pos = 'p', fig.height = 6.9, echo=FALSE}
-plot(res_all_years,
-     par.cex = 0.8,)    # For ISD plot
-```
-
-Caption for ISD plot:
-
-The y-axis is (a) linear and (b) logarithmic. For each bin, the horizontal green
-line shows the range of body lengths of that bin, with its value
-on the y-axis corresponding to the total number of individuals in bins whose
-minima are $\geq$ the bin's minimum. By definition, this includes all individual
-in that bin; for example, all $n$ individuals are $\geq$ the minimum of
-the first (left-most) bin, so that bin is at $n$ on the y-axis. The vertical
-span of each grey rectangle shows the possible numbers of
-individuals with body length $\geq$ the
-body length of individuals in that bin (horizontal
-span is the same as for the green lines). The maximum number of such individuals
-is the same as the green line, and the minimum number (bottom of grey rectangle)
-is the total number of individuals $\geq$ the bin's maximum. By definition, this is then the
-green line for the next bin. This plotting method allows us to properly represent the
-discrete binned data on a continuous scale.
-The text
-in (a) gives the MLE for the length size-spectrum exponent
-$b$, and the sample size $n$.
-
-```{r caption}
-caption_index <- 1   # index to use for detailed captions
-
-```
-TODO (adapting from MEPS vignette; double check the numbers): For example, the first bin is for lengths
-between `r res_all_strata[[caption_index]]$counts_per_bin_desc$binMin[1]` and `r res_all_strata[[caption_index]]$counts_per_bin_desc$binMax[1]` mm, and
-countains a count of `r f(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount[1])` individuals. We don't know
-how those individual's lengths are distributed within the bin. The green line on
-the y-axis illustrates that the number of individuals $\geq$ the minimum of the
-bin (`r res_all_strata[[caption_index]]$counts_per_bin_desc$binMin[1]` mm) is
-`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount), 1)`, namely
-all the individuals because this is the minimum length in the data. The grey
-shaded area shows the uncertainty -- the number (on the y-axis) of possible individual individuals with
-body mass $\geq$ any x-value within the bin is between
-`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount) - res_all_strata[[caption_index]]$counts_per_bin_desc$binCount[1], 1)`
-and
-`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount), 1)`
-(all individuals in the bin could be the smallest
-length within the bin or the highest).
-
-
-For 2004: Clearly that final right-hand value looks like an outlier, and it is just for
-one fish:
-```{r outlier}
-tail(res_all_strata[[caption_index]]$counts_per_bin_desc)
-```
-We could go back and try removing, but that's a little arbitrary for now.
-
-So $b$ is the length size-spectrum exponent, $b_l$. To convert to weight
-exponent, $b_w$, for a length-weight exponent of $\beta$ (writing up derivation elsewhere):
-
-$b_w = (b_l + 1) / \beta - 1$
-
-or, going the other way,
-
-$b_l = \beta (b_w + 1) - 1$
-
-For example, for first year we have, assuming $\beta = 3.1802$ for now:
-```{r, bweight}
-b_weight <- b_l_to_b_w(res_all_years[[1]]$b_l)
-b_weight
-```
-
-Make a tibble of all results and mutate it on:
-
-```{r saveallres}
-# Save all results in MLEbin_res_all_years
-# TODO make a function
-MLEbin_res_all_years <- tibble::tibble(
-                                  year = unlist(lapply(res_all_years, '[[',
-                                                       "year")),
-                                  xmin = unlist(lapply(res_all_years, '[[',
-                                                       "xmin")),
-                                  xmax = unlist(lapply(res_all_years, '[[',
-                                                       "xmax")),
-                                  n = unlist(lapply(res_all_years, '[[', "n")),
-                                  b_l = unlist(lapply(res_all_years, '[[',
-                                                      "b_l")),
-                                  b_l_confMin = unlist(lapply(res_all_years,
-                                                              '[[',
-                                                              "b_l_confMin")),
-                                  b_l_confMax = unlist(lapply(res_all_years,
-                                                              '[[',
-                                                              "b_l_confMax"))) %>%
-  mutate(b_w = b_l_to_b_w(b_l),
-         b_w_confMin = b_l_to_b_w(b_l_confMin),
-         b_w_confMax = b_l_to_b_w(b_l_confMax))
-  # if want standard errors:
-  # b_l_stdErr = (abs(b_l_confMin - b_l) + abs(b_l_confMax - b_l))/(2*1.96)
-```
-
-TODO 2021 figures, dig into data, looks like scaling up of counts happened for a
-few sampled fish in one poorly-sampled haul?
-
-## Go through ISD plots to decide which years should be excluded
-
-So go through the ISD plots, taking into account sample size `n`. Comments on
-each year (with exclude if warranted, else include):  TODO these might be strata
-C only - think should do each strata separately and combine sensible ones 2014
-looks way different for all regions combined. TODO
-
-2004 - could remove single big value, but need justification, include
-
-2005 - n = 16, exclude
-
-2006 - n = 24, exclude
-
-2007 - does have the hump of larger sizes
-
-2008 - slight hump of larger sizes
-
-2009 - good fit
-
-2010 - slightly weird fit, with one somewhat larger size
-
-2011 - great fit, very slight hump of larger sizes
-
-2012 - good fit though strange gap before large set of sizes
-
-2013 - pretty good fit
-
-2014 - slightly unusual fit, with a bit of a hump
-
-2015 - goodish fit, with 'missing' larger sizes
-
-2016 - very nice fit, $n$ almost 50,000
-
-2017 - good fit, with one somewhat larger size
-
-2018 - good fit, with 'missing' larger sizes
-
-2019 - weird fit because only four bins, because mode is so high - strange one,
-exclude (but look into more?)
-
-2020 - $n=10$ so exclude (explains the large confidence intervals in the plot
-with it included)
-
-2021 - kind of funny, though need to redo without bins TODO. Looks like a small
-sample may have got scaled up a lot?
-
-This suggests
-excluding analyses for years:
-```{r excludeyears}
-years_exclude <- c(2005, 2006, 2019, 2020)
-```
-
-## Show the plot for all years
-
-Now plot the estimated hake recruitments of age-0's for each year against the
-corresponding $b_l$, and add the uncertainties.
-
-```{r, plotrecruitments}
-plot_b_recruitment(MLEbin_res_all_years)
-```
-
-TODO notes may not be for this actual plot.
-So, what does this mean. Large recruitment years ($> 20\%$ of the 2010
-recruitment) always seem to have a higher $b_l$. Note that 2021 has a long tail
-of uncertainty (reaching quite high), but that's because it will have only been
-observed in one year of commercial data.
-
-A high $b_l$ seems necessary for high recruitment, but is not sufficient. Kind
-of makes sense -- other things can happen during further life-history stages.
-
-But, a low $b_l$ seems to imply low recruitment. This could be a heads up for
-advice.
-
-Of course, this may well all fall apart with further analyses, validation, and more
-data.
-
-In terms of the assessment done at the start of 2023, we have to assume recruitment
-for recruitment in 2022 (which hasn't been observed in data in
-the assessment model, but is what we can calculate $b_l$ for, hopefully in a
-timely fashion) and 2023 (which are just being spawned while we are doing the
-2023 assessment). The assumption is based on the stock recruitment curve with a
-large uncertainty, and is shown in blue on the next plot.
-
-## Results for new data from December 2023
-
-Not looked at in detail yet HERE. Need switches for strata and years.
-
-HERE Might not be strata C. Do each choice as a separate file.
-2014 for C should only have a few at 70. `filter(raw_simp_prop, year == 2014,
-strata == "C", x == 70)` only has two lines as shown here:
-
-First just strata C:
-
-```{r fitallyearsfunctionnew}
-res_all_years_new <- fit_all_years(raw_simp_prop_new,
-                                   strata = "C", #strata_to_keep,
-                                   bin_width_each_year = bin_width_each_year_new)
-# plot(res_all_years_new, par.cex = 0.8,) in next chunk but not echoed
-
-# HERE something wrong, as this clearly has lots in 70 in 2014:
-res_all_years_new[[21]]$year
-# res_all_years_new[[21]]$counts_per_bin %>% as.data.frame()
-res_all_years_new[[21]]$counts_per_bin %>% filter(binMid == 70)
-# HERE it's not using just strata C for some reason
-# but
-filter(raw_simp_prop_new, year == 2014, strata == "C", x == 70) %>% a()
-```
-
-\clearpage
-
-```{r, plotallnew, fig.pos = 'p', fig.height = 6.9, echo=FALSE}
-plot(res_all_years_new,
-     par.cex = 0.8,)    # For ISD plot
-```
-
-TODO make this a function:
-
-```{r saveallresnew}
-# Save all results in MLEbin_res_all_years
-# TODO make a function
-MLEbin_res_all_years_new <- tibble::tibble(
-                                  year = unlist(lapply(res_all_years_new, '[[',
-                                                       "year")),
-                                  xmin = unlist(lapply(res_all_years_new, '[[',
-                                                       "xmin")),
-                                  xmax = unlist(lapply(res_all_years_new, '[[',
-                                                       "xmax")),
-                                  n = unlist(lapply(res_all_years_new, '[[', "n")),
-                                  b_l = unlist(lapply(res_all_years_new, '[[',
-                                                      "b_l")),
-                                  b_l_confMin = unlist(lapply(res_all_years_new,
-                                                              '[[',
-                                                              "b_l_confMin")),
-                                  b_l_confMax = unlist(lapply(res_all_years_new,
-                                                              '[[',
-                                                              "b_l_confMax"))) %>%
-  mutate(b_w = b_l_to_b_w(b_l),
-         b_w_confMin = b_l_to_b_w(b_l_confMin),
-         b_w_confMax = b_l_to_b_w(b_l_confMax))
-  # if want standard errors:
-  # b_l_stdErr = (abs(b_l_confMin - b_l) + abs(b_l_confMax - b_l))/(2*1.96)
-
-years_exclude_new <- NULL # c(2005, 2006, 2019, 2020)
-```
-
-TODO need to look at figures and work out which years should be excluded.
-
-```{r, plotrecruitmentsnew}
-plot_b_recruitment(MLEbin_res_all_years_new,
-                   xlim = c(-30, 0))
-```
-
-Now all strata from 2001 onwards TODO check, Iain said 2004:
-
-```{r fitallyearsfunctionnewall}
-res_all_years_new_all <- fit_all_years(filter(raw_simp_prop_new,
-                                              year >= 2001),
-                                       strata = strata_to_keep,
-                                       bin_width_each_year = bin_width_each_year_new)
-# plot(res_all_years_new, par.cex = 0.8,) in next chunk but not echoed
-```
-
-\clearpage
-
-```{r, plotallnewall, fig.pos = 'p', fig.height = 6.9, echo=FALSE}
-plot(res_all_years_new_all,
-     par.cex = 0.8,)    # For ISD plot
-```
-
-TODO make this a function TODO annotate C in previous ones
-
-```{r saveallresnewall}
-# Save all results in MLEbin_res_all_years
-# TODO make a function
-MLEbin_res_all_years_new_all <- tibble::tibble(
-                                  year = unlist(lapply(res_all_years_new_all, '[[',
-                                                       "year")),
-                                  xmin = unlist(lapply(res_all_years_new_all, '[[',
-                                                       "xmin")),
-                                  xmax = unlist(lapply(res_all_years_new_all, '[[',
-                                                       "xmax")),
-                                  n = unlist(lapply(res_all_years_new_all, '[[', "n")),
-                                  b_l = unlist(lapply(res_all_years_new_all, '[[',
-                                                      "b_l")),
-                                  b_l_confMin = unlist(lapply(res_all_years_new_all,
-                                                              '[[',
-                                                              "b_l_confMin")),
-                                  b_l_confMax = unlist(lapply(res_all_years_new_all,
-                                                              '[[',
-                                                              "b_l_confMax"))) %>%
-  mutate(b_w = b_l_to_b_w(b_l),
-         b_w_confMin = b_l_to_b_w(b_l_confMin),
-         b_w_confMax = b_l_to_b_w(b_l_confMax))
-  # if want standard errors:
-  # b_l_stdErr = (abs(b_l_confMin - b_l) + abs(b_l_confMax - b_l))/(2*1.96)
-
-years_exclude_new_all <- c(2020, 2021, 2022, 2023)  # Had these earlier, not looked in detail yet: c(2005, 2006, 2019, 2020)
-```
-
-TODO need to look at figures and work out which years should be excluded.
-
-```{r, plotrecruitmentsnewall}
-plot_b_recruitment(MLEbin_res_all_years_new_all,
-                   years_exclude = years_exclude_new_all)
-#                   xlim = c(-30, 0))
-```
-
-HERE
-```{r lookatme}
-only_2008 <- filter(raw_simp_prop_new,
-                    year == 2008,
-                    strata %in% strata_to_keep)
-filter(only_2008, prop_measured < 0.01) %>% as.data.frame()
-
-only_2014 <- filter(raw_simp_prop_new,
-                    year == 2014,
-                    strata %in% strata_to_keep)
-summary(only_2014)
-filter(only_2014, prop_measured < 0.01) %>% as.data.frame()  # none
-filter(only_2014, prop_measured < 0.05) %>% as.data.frame()  #
-
-filter(only_2014, x == 70) %>% as.data.frame()   # TODO something coarser also,
-                                        # these are lots of SC - so again with
-                                        # the coarse measurements. Aha - those
-                                        # 70 measurements (the max) should be
-                                        # spread out.
-filter(only_2014, x == 69) %>% as.data.frame()   # only 5
-filter(only_2014, x == 71) %>% as.data.frame()   # only 4
-```
-
-## Moving $b_l$ vs. $b_w$ figures to here.
-
-```{r blbwrelationship}
-# par(mfrow=c(2,1))
-
-b_l_vec <- seq(-10, 0, 0.1)
-
-plot(b_l_vec,
-     b_l_to_b_w(b_l_vec),
-     xlab = "b_l",
-     ylab = "b_w",
-     ylim = range(b_l_vec))
-
-b_w_vec = seq(-4, 0, 0.1)
-
-plot(b_w_vec,
-     b_w_to_b_l(b_w_vec),
-     xlab = "b_w",
-     ylab = "b_l",
-     xlim = range(b_w_to_b_l(b_w_vec)))
-```
-
-So those are pretty straight, suggesting indeed a linear relationship. Can
-calculate derivative analytically. TODO in other .tex write up.
-
-```{r exit, eval=FALSE, echo=FALSE}
-knitr::knit_exit()
-```
