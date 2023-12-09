@@ -1,5 +1,5 @@
 ---
-title: "Analyses of hake lengths using size spectra approach"
+title: "Analyses of hake lengths using size spectra approach -- original data I received, just strata C"
 author: "Andrew Edwards"
 output: pdf_document
 fontsize: 12pt
@@ -209,12 +209,17 @@ D Rename columns for simplicity.
 TODO functionalise with functions early on here, may want to do in a new package.
 
 ```{r, simplify}
+# Select one of these
+# strata_to_use <- c("C", "NC", "S", "SC", "N")
+strata_to_use <- "C"
+
+
 raw_simp <- filter(raw,
                    YEAR > 2003,
                    STD_LENGTH >= 28,   # TODO check with Iain, he said 28 onwards
                                       # was > 27 but isn't actually as 0.01mm resolution
                    STD_LENGTH < 90,
-                   STRATA %in% c("C", "NC", "S", "SC", "N")) %>%
+                   STRATA %in% strata_to_use) %>%
   select(year = YEAR,
          haul_no = HAUL_NO,
          strata = STRATA,
@@ -507,6 +512,6 @@ plot(b_w_vec,
 So those are pretty straight, suggesting indeed a linear relationship. Can
 calculate derivative analytically. TODO in other .tex write up.
 
-```{r exit, eval=FALSE}
+```{r exit, eval=FALSE, echo=FALSE}
 knitr::knit_exit()
 ```
