@@ -1,5 +1,5 @@
 ---
-title: "Analyses of hake lengths using size spectra approach -- original data I received, just strata C"
+title: "Analyses of hake lengths using size spectra approach -- updated Dec 2023 data I received, just strata C"
 author: "Andrew Edwards"
 output: pdf_document
 fontsize: 12pt
@@ -64,8 +64,6 @@ TO ASK:
 
 Ideas to come back to:
 
-- think about global x range.
-
 - Double check calcs of $b_w$, then plot against
 hake recruitment. Though could just stick with $b_l$, as it's a linear scaling
 and maybe an unnecessary extra step.
@@ -73,7 +71,7 @@ and maybe an unnecessary extra step.
 - then also do for other strata. And decide on criteria for leaving out some
 of the data.
 
-## Load in raw data
+## Load in raw data - original data got in La Jolla
 
 ```{r loadsetdata}
 raw <- readr::read_csv("../../size-spectra-applications/calcofi-hake/hake-lengths/cpue-length_hake-hayden's weight file with all fish in an annual super tow.csv") %>%
@@ -276,6 +274,22 @@ stopifnot(max(raw_simp$year) == 2021)   # if get new data then need to look at
 ```
 Last (commented code) shows that only 2021 has lengths to 0.01 mm. So deal with that
 separately below.
+
+## Saving the original data set
+
+Doing this after running the above with the original data. So then have the
+data that get used in the analysis saved as an object to then easily compare.
+```{r saving}
+raw_simp_prop_orig <- raw_simp_prop
+use_data(raw_simp_prop_orig)
+
+```
+
+## Updated data set from John Field, December 2023
+
+Copying loading in from above - want to be able to c
+
+
 
 ## Define bin widths for each year
 

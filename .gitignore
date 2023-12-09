@@ -4,3 +4,5 @@ lib/
 *.html
 .Rproj.user
 /report/hake-lengths-analysis.pdf
+/report/hake-lengths-analysis-five-strata-orig-data.pdf
+/data/raw_simp_prop_orig.rda
