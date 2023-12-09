@@ -71,18 +71,107 @@ and maybe an unnecessary extra step.
 - then also do for other strata. And decide on criteria for leaving out some
 of the data.
 
-## Load in raw data - original data got in La Jolla
+## Load in raw data - now load in updated data set
 
+Now work through line by line. Likely need the second .csv file also as that has
+`TOTAL_NO`. But I think `EXP` in the new one is the expansion, so 1/`TOTAL_NO`.
 ```{r loadsetdata}
+# Original from La Jolla trip:
 raw <- readr::read_csv("../../size-spectra-applications/calcofi-hake/hake-lengths/cpue-length_hake-hayden's weight file with all fish in an annual super tow.csv") %>%
   dplyr::mutate_if(is.character, factor)
 
 raw
 
 summary(raw)
+
+raw_new <-
+  readr::read_csv("../../size-spectra-applications/calcofi-hake/hake-lengths/rreas-to-2023/hake83to2023lengths.csv") %>%
+  dplyr::mutate_if(is.character, factor)
+
+raw_new
+
+summary(raw_new)
+```
+Each row is a fish (given a `SP_NO`, specimen).
+
+## New data set -- given had already figured out details originally, just filter to what I think we want
+
+Know from below what we ended up needing in `raw_simp_prop`, so just try and
+extract that now and check agrees with the saved version.
+```{r newdata}
+# Select one of these   TODO should really do this later, do as an option in
+# fitting function.
+
+# strata_to_use <- c("C", "NC", "S", "SC", "N")
+strata_to_use <- "C"
+
+# From below for original data:
+# names(raw_simp_prop)
+# "year"             "haul_no"          "strata"           "x"    # "cpue_yoy"         "id"               "measured_in_haul" "prop_measured"
+# "scaled_counts"
+
+raw_simp_new <- select(raw_new,
+                       year = YEAR,
+                       haul_no = HAUL_NO,
+                       strata = STRATA,
+                       x = STD_LENGTH,
+                       total_no = TOTAL_NO,
+                       number_measured = NMEAS, # TODO I think
+                       exp_value = EXP) %>%
+  filter(x >= 28,
+         x < 90,
+         strata %in% strata_to_use) %>%   # Should really do this later
+  mutate(id = paste(year,       # Hayden's id, to make calcs easier
+                    strata,     # than grouping, and to more easily compare any results.
+                    haul_no,
+                    sep = "_")) %>%
+  arrange(year,
+          strata,
+          haul_no)
+
+raw_simp_new
+
+# Think this is already calc'ed in new data
+# raw_simp_totals_new <- raw_simp_new %>%
+#  group_by(id) %>%
+#  summarise(measured_in_haul = n())
+
+# Don't think need this from original
+#raw_simp_prop_new <- left_join(raw_simp_new,
+#                           raw_simp_totals_new,
+#                           by = "id") %>%
+#  mutate(prop_measured = measured_in_haul / cpue_yoy,
+#         scaled_counts = 1 / prop_measured)
+
+raw_simp_prop_new <- mutate(raw_simp_new,
+                            prop_measured = number_measured/total_no,
+                            scaled_counts = 1 / prop_measured) %>%
+  # The 1 is 1 obs for each row
+  filter(number_measured > 0)
+
+raw_simp_prop_new
+summary(raw_simp_prop_new)
 ```
 
-Each row is a fish (given a `SP_NO`, specimen).
+Resolution, not quite integer:
+
+```{r resolution}
+length(unique(raw_simp_prop_new$x))
+sort(unique(raw_simp_prop_new$x))
+
+expect_equal(raw_simp_prop_new$exp_value,
+             raw_simp_prop_new$scaled_counts)
+```
+HERE HERE HERE - last thing gives no error (just strata C right now). Excellent,
+is what I thought.
+
+Should be good to move onto analysis??? Check have all the columns and remove
+un-needed ones. HERE HERE HERE.
+
+## Orig data set
+
+
+
 
 `CPUE_YOY` -- the CPUE of young-of-year hake caught in that haul. The rows
 for that haul are only the fish that were measured (sampled), each having a
@@ -207,10 +296,6 @@ D Rename columns for simplicity.
 TODO functionalise with functions early on here, may want to do in a new package.
 
 ```{r, simplify}
-# Select one of these
-# strata_to_use <- c("C", "NC", "S", "SC", "N")
-strata_to_use <- "C"
-
 
 raw_simp <- filter(raw,
                    YEAR > 2003,
@@ -234,7 +319,8 @@ raw_simp <- filter(raw,
 raw_simp
 
 # One row for each haul:
-raw_simp_totals <- raw_simp %>% group_by(id) %>%
+raw_simp_totals <- raw_simp %>%
+  group_by(id) %>%
   summarise(measured_in_haul = n())
 hist(raw_simp_totals$measured_in_haul, breaks = 40)
 # Shows don't have enough data to fit at the haul level - kind of, have to check
@@ -278,10 +364,15 @@ separately below.
 ## Saving the original data set
 
 Doing this after running the above with the original data. So then have the
-data that get used in the analysis saved as an object to then easily compare.
+data that get used in the analysis saved as an object to then easily
+compare. Having run it and saved now commenting out to not overwrite. Then use
+the above code to work on the new data set.
+
+TODO redo this - this was only for strata C, and didn't have early years. Now
+doing new code for new data, so this isn't so needed, but still useful.
 ```{r saving}
-raw_simp_prop_orig <- raw_simp_prop
-use_data(raw_simp_prop_orig)
+# raw_simp_prop_orig <- raw_simp_prop
+# use_data(raw_simp_prop_orig)
 
 ```
 
