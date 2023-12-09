@@ -1,5 +1,5 @@
 ---
-title: "Analyses of hake lengths using size spectra approach -- updated Dec 2023 data I received, just strata C"
+title: "Analyses of hake lengths using size spectra approach -- data wrangling of original and updated Dec 2023 data"
 author: "Andrew Edwards"
 output: pdf_document
 fontsize: 12pt
