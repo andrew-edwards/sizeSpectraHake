@@ -287,6 +287,14 @@ raw_simp_prop_nov23 <- mutate(raw_simp_nov23,
                             scaled_counts = 1 / prop_measured) %>%  # The 1 is 1 obs for each row
   filter(number_measured > 0)
 
+expect_equal(raw_simp_prop_nov23$exp_value,
+             raw_simp_prop_nov23$scaled_counts)
+
+# Last line gives no error. Excellent, is what I thought. So can remove
+#  exp_value (which was in the file).
+raw_simp_prop_nov23 <- select(raw_simp_prop_nov23,
+                              -"exp_value")
+
 raw_simp_prop_nov23
 summary(raw_simp_prop_nov23)
 
@@ -301,13 +309,10 @@ Resolution, all integers:
 ```{r resolution}
 length(unique(raw_simp_prop_nov23$x))
 sort(unique(raw_simp_prop_nov23$x))
-
-expect_equal(raw_simp_prop_nov23$exp_value,
-             raw_simp_prop_nov23$scaled_counts)
 ```
-Last line gives no error. Excellent, is what I thought.
-
-TODO probably best to make names exactly the same as `raw_simp_prop_orig`.
+TODO probably best to make names exactly the same as `raw_simp_prop_orig`. Need
+to get on with analysis though -- should make them consistent with nov23 rather
+than orig.
 
 Check what data are available for each year:
 ```{r nov23summary}
