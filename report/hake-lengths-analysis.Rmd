@@ -362,242 +362,49 @@ or, going the other way,
 
 $b_l = \beta (b_w + 1) - 1$
 
-
-```{r exit1}
-knitr::knit_exit()
-```
-
-Do this when have all saved:
-Assuming $\beta = 3.1802$ for now:
+For example, for first year we have, assuming $\beta = 3.1802$ for now:
 ```{r, bweight}
-b_weight <- b_l_to_b_w(MLEbin_res$MLE)
+b_weight <- b_l_to_b_w(res_all_years[[1]]$b_l)
 b_weight
 ```
 
+Make a tibble of all results and mutate it on:
 
-
-
-## Do calculations for each year, just doing strata C for now - original calculations
-
-```{r descending2}
-full_years <- sort(unique(raw_simp_prop$year))
-full_years
-
-# For now removing some of things that were calculated above for 2004. Won't be needed if
-#  functionalise what's in the loop TODO, which will be cleaner.
-rm(counts_per_bin,
-   max_ind,
-   binned_desc,
-   MLEbin_res)
-
-for(i in 1:length(full_years)){
-  paste("Year is", full_years[i])
-
-  bin_width <- ifelse(full_years[i] < 2021,
-                      1,
-                      0.01)
-
-  # For 2021 data:
-  #  raw_simp_prop_this_year$x - round(raw_simp_prop_this_year$x,
-  #                                    digits = 2)
-  # are all zeros. Check for later years.
-  raw_simp_prop_this_year <- filter(raw_simp_prop,
-                                    year == full_years[i])
-#                                    strata == "C")    # TODO just do C for now
-  counts_per_bin <- summarise(group_by(raw_simp_prop_this_year,
-                                       x),
-                              binCount = sum(scaled_counts)) %>%
-  mutate(binMid = x,
-         binMin = binMid - bin_width/2,
-         binMax = binMid + bin_width/2) %>%  # Assume these are midpoints, but TODO check
-  select(-"x")
-  # TODO reorder to have binCount last
-
-  counts_per_bin         # Bins and the counts in each bin
-
-  # Descending limb
-  max_ind <- which.max(counts_per_bin$binCount)
-  max_ind
-
-  if(max_ind == 1){
-    binned_desc <- counts_per_bin
-  } else {
-    binned_desc <- counts_per_bin[-(1:(max_ind-1)), ]
-  }
-
-  plot(counts_per_bin$binMid,
-       counts_per_bin$binCount,
-       type="h",
-       main = full_years[i])
-
-  points(binned_desc$binMid,
-         binned_desc$binCount,
-         type="h",
-         col = "red")
-
-  MLEbin_res <-  calcLike(negLL.fn = negLL.PLB.binned,
-                          p = -1.5,
-                          w = c(dplyr::pull(binned_desc,
-                                            binMin),
-                                dplyr::pull(binned_desc,
-                                            binMax)[nrow(binned_desc)]),
-                                # all minima plus max of final bin
-                          d = dplyr::pull(binned_desc,
-                                          binCount),
-                          J = nrow(binned_desc),   # = num.bins
-                          # suppress.warnings = TRUE,
-                          vecDiff = 15)             # increase this if hit a bound
-
-  # Move into a plotting loop, but do each one at a time now.
-  ISD_bin_plot_nonoverlapping(binValsTibble = binned_desc,
-                            b.MLE = MLEbin_res$MLE,
-                            b.confMin = MLEbin_res$conf[1],
-                            b.confMax = MLEbin_res$conf[2],
-                            yBig.inc = 10000,
-                            xLab = "Body length (x), mm",
-                            year = full_years[i])
-                            # main = full_years[i])
-
-  par(mfrow = c(1,1))
-  # TODO check y axis bottom limit for i=16, year 2019
-
-  # Save all results in MLEbin_res_all_years
-    if(i == 1){
-      MLEbin_res_all_years <- data.frame(Year = full_years[i],    # TODO should make
-                                        # Year but may have to change timeSerPlot
-                                         xmin = min(binned_desc$binMin),
-                                         xmax = max(binned_desc$binMax),
-                                         n = sum(binned_desc$binCount),
-                                         b_l = MLEbin_res$MLE,
-                                         b_l_confMin = MLEbin_res$conf[1],
-                                         b_l_confMax = MLEbin_res$conf[2])
-    } else {
-      MLEbin_res_all_years <-  rbind(MLEbin_res_all_years,
-                                     c(full_years[i],   # Must be same order as above
-                                       min(binned_desc$binMin),
-                                       max(binned_desc$binMax),
-                                       sum(binned_desc$binCount),
-                                       MLEbin_res$MLE,
-                                       MLEbin_res$conf[1],
-                                       MLEbin_res$conf[2]))
-   }
-}
+```{r saveallres}
+# Save all results in MLEbin_res_all_years
+# TODO make a function
+MLEbin_res_all_years <- tibble::tibble(
+                                  year = unlist(lapply(res_all_years, '[[',
+                                                       "year")),
+                                  xmin = unlist(lapply(res_all_years, '[[',
+                                                       "xmin")),
+                                  xmax = unlist(lapply(res_all_years, '[[',
+                                                       "xmax")),
+                                  n = unlist(lapply(res_all_years, '[[', "n")),
+                                  b_l = unlist(lapply(res_all_years, '[[',
+                                                      "b_l")),
+                                  b_l_confMin = unlist(lapply(res_all_years,
+                                                              '[[',
+                                                              "b_l_confMin")),
+                                  b_l_confMax = unlist(lapply(res_all_years,
+                                                              '[[',
+                                                              "b_l_confMax"))) %>%
+  mutate(b_w = b_l_to_b_w(b_l),
+         b_w_confMin = b_l_to_b_w(b_l_confMin),
+         b_w_confMax = b_l_to_b_w(b_l_confMax))
+  # if want standard errors:
+  # b_l_stdErr = (abs(b_l_confMin - b_l) + abs(b_l_confMax - b_l))/(2*1.96)
 ```
 
 TODO 2021 figures, dig into data, looks like scaling up of counts happened for a
 few sampled fish in one poorly-sampled haul?
 
-Check results using new function with what I had for loops.
-
-```{r check}
-expect_equal(MLEbin_res_all_years$Year,
-             unlist(lapply(res_all_years, '[[', 1)))   # can say "year" etc. instead
-expect_equal(MLEbin_res_all_years$xmin,
-             unlist(lapply(res_all_years, '[[', 3)))
-expect_equal(MLEbin_res_all_years$xmax,
-             unlist(lapply(res_all_years, '[[', 4)))
-expect_equal(MLEbin_res_all_years$n,
-             unlist(lapply(res_all_years, '[[', 5)))
-expect_equal(MLEbin_res_all_years$b_l,
-             unlist(lapply(res_all_years, '[[', 8)))
-expect_equal(MLEbin_res_all_years$b_l_confMin,
-             unlist(lapply(res_all_years, '[[', 9)))
-expect_equal(MLEbin_res_all_years$b_l_confMax,
-             unlist(lapply(res_all_years, '[[', 10)))
-```
-All good - so results from function match my original loop.
-
-```{r bw}
-# Had thought might need the standard error for weighted linear regression - actually prob don't
-#  need for hake analyses so comment out for now. Calculate the b_w also
-MLEbin_res_all_years = tibble::as_tibble(MLEbin_res_all_years)
-MLEbin_res_all_years = dplyr::mutate(MLEbin_res_all_years,
-                                     #b_l_stdErr = (abs(b_l_confMin - b_l) +
-                                     #              abs(b_l_confMax - b_l))/(2*1.96),
-                                     b_w = b_l_to_b_w(b_l),
-                                     b_w_confMin = b_l_to_b_w(b_l_confMin),
-                                     b_w_confMax = b_l_to_b_w(b_l_confMax))
-
-MLEbin_res_all_years
-```
-
-Now to plot the results though time (the rename is just putting the standard
-column names back in for the automated plot):
-```{r timeseries, fig.width=7.5, fig.height=6, eval=FALSE}
-res = timeSerPlot(rename(MLEbin_res_all_years,
-                         b = b_l,
-                         confMin = b_l_confMin,
-                         confMax = b_l_confMax),
-                  legName = "(a) MLEbins",
-#                  yLim = c(-2.2, -0.9),
-                  xLab = "Year",
-                  method = "MLEbins",
-                  legPos = "bottomleft",
-                  weightReg = TRUE,
-                  xTicksSmallInc = 1,
-                  yTicksSmallInc = 1,
-                  doRegression = FALSE)
-```
-
-Now plot the estimated hake recruitments of age-0's for each year against the
-corresponding $b_l$, and add the uncertainties.
-
-
-```{r, plotrecbfunc}
-plot_b_recruitment <- function(b_tibble,    # tibble with Year, b_l,
-                                        # b_l_confMin, b_l_confMax, # could add
-                                        # switch for b_w also
-                               recruitment_tibble,   # needs to be same years,
-                                        # and have year, low, median, high
-                               conf_col = "grey",
-                               label_col = "red",
-                               xlim = c(-14, 0),    # excludes 2019 which is way off
-                               ylim = c(0, 1.1),     # to include max of 2023
-                                        # credible interval
-                               xlab = "Length size spectrum exponent, b_l",  # TODO subscript properly
-                               ylab = "Estimated age-0 hake recruitment scaled by 2010 value",
-                               pch = 20,
-                               cex = 1,
-                               text_cex = 0.7,        # for year labels
-                               adj = c(-0.15, -0.3),  # adjustment for labelling years
-                               ...){
-  plot(b_tibble$b_l,
-     recruitment_tibble$median,
-     xlim = xlim,
-     xlab = xlab,
-     ylab = ylab,
-     pch = pch,
-     cex = cex)
-
-  # Confidence intervals for b_l
-  segments(x0 = b_tibble$b_l_confMin,
-           y0 = recruitment_tibble$median,
-           x1 = b_tibble$b_l_confMax,
-           y1 = recruitment_tibble$median,
-           col = conf_col)
-
-  # Credible intervals for recruitment
-  segments(x0 = b_tibble$b_l,
-           y0 = recruitment_tibble$low,
-           x1 = b_tibble$b_l,
-           y1 = recruitment_tibble$high,
-           col = conf_col)
-  # Add labels
-  text(b_tibble$b_l,
-       recruitment_tibble$median,
-       recruitment_tibble$year,
-       adj = adj,
-       col = label_col,
-       cex = text_cex)
-}
-
-```
-
-
 ## Go through ISD plots to decide which years should be excluded
 
 So go through the ISD plots, taking into account sample size `n`. Comments on
-each year (with exclude if warranted, else include):
+each year (with exclude if warranted, else include):  TODO these might be strata
+C only - think should do each strata separately and combine sensible ones 2014
+looks way different for all regions combined. TODO
 
 2004 - could remove single big value, but need justification, include
 
@@ -646,18 +453,14 @@ years_exclude <- c(2005, 2006, 2019, 2020)
 
 ## Show the plot for all years
 
-```{r, plotrecruitments}
-hake_recruitment_over_2010_in_full_years <- filter(hake_recruitment_over_2010,
-                                                   year %in% full_years)
+Now plot the estimated hake recruitments of age-0's for each year against the
+corresponding $b_l$, and add the uncertainties.
 
-# TODO add check to function that years are the same
-plot_b_recruitment(filter(MLEbin_res_all_years,
-                          !Year %in% years_exclude),
-                   filter(hake_recruitment_over_2010_in_full_years,
-                          !year %in% years_exclude),
-                   xlim = c(-14,0))
+```{r, plotrecruitments}
+plot_b_recruitment(MLEbin_res_all_years)
 ```
 
+TODO notes may not be for this actual plot.
 So, what does this mean. Large recruitment years ($> 20\%$ of the 2010
 recruitment) always seem to have a higher $b_l$. Note that 2021 has a long tail
 of uncertainty (reaching quite high), but that's because it will have only been
@@ -678,27 +481,6 @@ the assessment model, but is what we can calculate $b_l$ for, hopefully in a
 timely fashion) and 2023 (which are just being spawned while we are doing the
 2023 assessment). The assumption is based on the stock recruitment curve with a
 large uncertainty, and is shown in blue on the next plot.
-
-```{r plotrecsandassumed}
-plot_b_recruitment(filter(MLEbin_res_all_years,
-                          !Year %in% years_exclude),
-                   filter(hake_recruitment_over_2010_in_full_years,
-                          !year %in% years_exclude),
-                   xlim = c(-14,0))
-
-# TODO Add to function, but for now just do here:
-x_loc <- 0.3  # -14
-segments(x0 = x_loc,
-         y0 = filter(hake_recruitment_over_2010, year == 2023)$low,
-         x1 = x_loc,
-         y1 = filter(hake_recruitment_over_2010, year == 2023)$high,
-         col = "blue")
-
-points(x_loc,
-       filter(hake_recruitment_over_2010, year == 2023)$median,
-       col = "blue",
-       pch = 20)
-```
 
 ## Moving $b_l$ vs. $b_w$ figures to here.
 

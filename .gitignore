@@ -3,3 +3,4 @@ lib/
 
 *.html
 .Rproj.user
+/report/hake-lengths-analysis.pdf
