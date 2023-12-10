@@ -22,35 +22,13 @@ library(pacea)
 # load_all()  # maybe best to do manually.
 ```
 
-KEEP may need to do these:
-
-- check plots with .html version - all good execept 2021 histogram
-    - have got working but it's still slightly different
-- then can delete loop non-functionalised version here.
-- Tidy this up then should be able to just repeat functions for Strata C and
-  other strata.
-
-- relook at this, maybe make appendices for each option (or separate files).
-- functionalise the `MLEbins_res` part
-- look into data carefully, for example 2008 all strata has some very low
-`prop_measured`,
-- aha: late on see lookatme chunk `tt <- filter(raw_simp_prop_new, year == 2008, strata %in%
-  strata_to_keep)` then `filter(tt, prop_measured < 0.01) %>% as.data.frame()`;
-  clear that they're all NC, and see the plot (final set here), clear bumps at
-  30mm, 40mm, and 50mm. Dubious, prob remove NC (such coarseness would be too
-  much - ooh, though MLEbins could cope with it, agh fiddly though).
-
--  Maybe even try all strata separately? Might not be enough data
-though. Separate files may be best - easier to compare.
-- HERE NEXT - do a data wrangling file then separate analysis ones (since can
-  just use functions probably).
-- think might have same issue as Amy's problem -should we really scale up. Can
-  sometimes be extreme.
-
 ## Load wrangled data
 
+Have NOT looked at results carefully yet for this. Wanting to do nov23 data as
+that's what we'll use going forward.
+
 This is what should be changed for each analysis. `orig` or `nov23` and `C` or
-`all_strata`. Comment one in each pair of these first four lines.
+`all_strata`. Comment one in each pair of these first four lines. And change the title.
 ```{r load}
 dataset <- "orig"
 # dataset <- "nov23"
@@ -94,6 +72,10 @@ res_all_years <- fit_all_years(raw_simp_prop,
                                strata = strata_to_keep,
                                bin_width_each_year = bin_width_each_year,
                                min_year_to_analyse = min_year_to_analyse)
+
+MLEbin_res_all_years <- MLEbin_results_extract(res_all_years)  # tibble of
+                                        # annual results
+
 # plot(res_all_years, par.cex = 0.8,) in next chunk but not echoed
 ```
 
@@ -105,12 +87,6 @@ plot(res_all_years,
 ```
 
 
-For 2004: Clearly that final right-hand value looks like an outlier, and it is just for
-one fish:
-```{r outlier}
-tail(res_all_strata[[caption_index]]$counts_per_bin_desc)
-```
-We could go back and try removing, but that's a little arbitrary for now.
 
 So $b$ is the length size-spectrum exponent, $b_l$. To convert to weight
 exponent, $b_w$, for a length-weight exponent of $\beta$ (writing up derivation elsewhere):
@@ -127,45 +103,18 @@ b_weight <- b_l_to_b_w(res_all_years[[1]]$b_l)
 b_weight
 ```
 
-Make a tibble of all results and mutate it on:
-
-```{r saveallres}
-# Save all results in MLEbin_res_all_years
-# TODO make a function
-MLEbin_res_all_years <- tibble::tibble(
-                                  year = unlist(lapply(res_all_years, '[[',
-                                                       "year")),
-                                  xmin = unlist(lapply(res_all_years, '[[',
-                                                       "xmin")),
-                                  xmax = unlist(lapply(res_all_years, '[[',
-                                                       "xmax")),
-                                  n = unlist(lapply(res_all_years, '[[', "n")),
-                                  b_l = unlist(lapply(res_all_years, '[[',
-                                                      "b_l")),
-                                  b_l_confMin = unlist(lapply(res_all_years,
-                                                              '[[',
-                                                              "b_l_confMin")),
-                                  b_l_confMax = unlist(lapply(res_all_years,
-                                                              '[[',
-                                                              "b_l_confMax"))) %>%
-  mutate(b_w = b_l_to_b_w(b_l),
-         b_w_confMin = b_l_to_b_w(b_l_confMin),
-         b_w_confMax = b_l_to_b_w(b_l_confMax))
-  # if want standard errors:
-  # b_l_stdErr = (abs(b_l_confMin - b_l) + abs(b_l_confMax - b_l))/(2*1.96)
-```
-
-TODO 2021 figures, dig into data, looks like scaling up of counts happened for a
-few sampled fish in one poorly-sampled haul?
-
 ## NEED TO DO FOR EACH ANALYSIS TYPE.... go through ISD plots to decide which years should be excluded
 
-So go through the ISD plots, taking into account sample size `n`. Comments on
-each year (with exclude if warranted, else include):  TODO these might be strata
-C only - think should do each strata separately and combine sensible ones 2014
-looks way different for all regions combined. TODO
+So go through the histograms and ISD plots, checking outliers and 'rounded to 10
+mm' type issues, and taking into account sample size `n`. Comment below on
+each year (with exclude if warranted, else include):
 
-2004 - could remove single big value, but need justification, include
+NOT DONE YET FOR THIS ANALYSIS
+
+2004 - could remove single big value, but need justification, include: (note,
+index not guaranteed here:)
+`r tail(res_all_years[[caption_index]]$counts_per_bin_desc)`. We could go back and
+try removing, but that's pretty arbitrary. Include.
 
 2005 - n = 16, exclude
 
@@ -202,7 +151,10 @@ exclude (but look into more?)
 with it included)
 
 2021 - kind of funny, though need to redo without bins TODO. Looks like a small
-sample may have got scaled up a lot?
+sample may have got scaled up a lot? Looks like scaling up of counts happened for a
+few sampled fish in one poorly-sampled haul? But prob for 0.01 mm, may change
+for 1 mm.
+
 
 This suggests
 excluding analyses for years:
@@ -210,16 +162,18 @@ excluding analyses for years:
 years_exclude <- c(2005, 2006, 2019, 2020)
 ```
 
-## Show the plot for all years
+## Show the plot for all years and write notes
 
 Now plot the estimated hake recruitments of age-0's for each year against the
 corresponding $b_l$, and add the uncertainties.
 
 ```{r, plotrecruitments}
-plot_b_recruitment(MLEbin_res_all_years)
+plot_b_recruitment(MLEbin_res_all_years,
+                   years_exclude = years_exclude)
 ```
 
-TODO notes may not be for this actual plot.
+TODO notes not yet for this actual plot.
+
 So, what does this mean. Large recruitment years ($> 20\%$ of the 2010
 recruitment) always seem to have a higher $b_l$. Note that 2021 has a long tail
 of uncertainty (reaching quite high), but that's because it will have only been
@@ -239,19 +193,31 @@ for recruitment in 2022 (which hasn't been observed in data in
 the assessment model, but is what we can calculate $b_l$ for, hopefully in a
 timely fashion) and 2023 (which are just being spawned while we are doing the
 2023 assessment). The assumption is based on the stock recruitment curve with a
-large uncertainty, and is shown in blue on the next plot.
+large uncertainty, and is shown in blue on the plot.
+
+A look at the values for each year, includes converted $b_w$ value:
+```{r MLEbinvalues}
+select(MLEbin_res_all_years, -c("b_w_confMin", "b_w_confMax", "b_l_stdErr")) %>%
+  a()
+```
+
+A quick look at including all years (useful for looking at recent ones that
+should be plotted differently TODO):
+
+```{r, plotrecruitmentsexcludenone}
+plot_b_recruitment(MLEbin_res_all_years)
+```
+
 
 ## Might be useful for analysing
 
 ```{r lookatme}
-only_2008 <- filter(raw_simp_pro,
-                    year == 2008,
-                    strata %in% strata_to_keep)
+only_2008 <- filter(raw_simp_prop,
+                    year == 2008)
 filter(only_2008, prop_measured < 0.01) %>% as.data.frame()
 
 only_2014 <- filter(raw_simp_prop,
-                    year == 2014,
-                    strata %in% strata_to_keep)
+                    year == 2014)
 summary(only_2014)
 filter(only_2014, prop_measured < 0.01) %>% as.data.frame()  # none
 filter(only_2014, prop_measured < 0.05) %>% as.data.frame()  #
@@ -292,17 +258,17 @@ caption_index <- 1   # index to use for detailed captions
 ```
 
 TODO (adapting from MEPS vignette; double check the numbers): For example, the first bin is for lengths
-between `r res_all_strata[[caption_index]]$counts_per_bin_desc$binMin[1]` and `r res_all_strata[[caption_index]]$counts_per_bin_desc$binMax[1]` mm, and
-countains a count of `r f(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount[1])` individuals. We don't know
+between `r res_all_years[[caption_index]]$counts_per_bin_desc$binMin[1]` and `r res_all_years[[caption_index]]$counts_per_bin_desc$binMax[1]` mm, and
+countains a count of `r f(res_all_years[[caption_index]]$counts_per_bin_desc$binCount[1])` individuals. We don't know
 how those individual's lengths are distributed within the bin. The green line on
 the y-axis illustrates that the number of individuals $\geq$ the minimum of the
-bin (`r res_all_strata[[caption_index]]$counts_per_bin_desc$binMin[1]` mm) is
-`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount), 1)`, namely
+bin (`r res_all_years[[caption_index]]$counts_per_bin_desc$binMin[1]` mm) is
+`r f(sum(res_all_years[[caption_index]]$counts_per_bin_desc$binCount), 1)`, namely
 all the individuals because this is the minimum length in the data. The grey
 shaded area shows the uncertainty -- the number (on the y-axis) of possible individual individuals with
 body mass $\geq$ any x-value within the bin is between
-`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount) - res_all_strata[[caption_index]]$counts_per_bin_desc$binCount[1], 1)`
+`r f(sum(res_all_years[[caption_index]]$counts_per_bin_desc$binCount) - res_all_years[[caption_index]]$counts_per_bin_desc$binCount[1], 1)`
 and
-`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount), 1)`
+`r f(sum(res_all_years[[caption_index]]$counts_per_bin_desc$binCount), 1)`
 (all individuals in the bin could be the smallest
 length within the bin or the highest).

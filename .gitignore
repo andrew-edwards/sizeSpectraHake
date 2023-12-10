@@ -8,3 +8,4 @@ lib/
 /data/raw_simp_prop_orig.rda
 /report/hake-lengths-wrangling.pdf
 report/*.rds
+report/*.pdf
