@@ -85,11 +85,9 @@ min_year_to_analyse <- ifelse(strata_to_analyse == "C",
                                          # all strata, so check TODO
 ```
 
-## Do analysis
+## Do analysis and plot results
 
-HERE - gives error.
-
-These arguments shouldn't need changing. Do the analysis:
+These arguments shouldn't need changing. See end of file for caption. Do the analysis:
 
 ```{r fitallyearsfunction}
 res_all_years <- fit_all_years(raw_simp_prop,
@@ -105,46 +103,6 @@ res_all_years <- fit_all_years(raw_simp_prop,
 plot(res_all_years,
      par.cex = 0.8,)    # For ISD plot
 ```
-
-Caption for ISD plot:
-
-The y-axis is (a) linear and (b) logarithmic. For each bin, the horizontal green
-line shows the range of body lengths of that bin, with its value
-on the y-axis corresponding to the total number of individuals in bins whose
-minima are $\geq$ the bin's minimum. By definition, this includes all individual
-in that bin; for example, all $n$ individuals are $\geq$ the minimum of
-the first (left-most) bin, so that bin is at $n$ on the y-axis. The vertical
-span of each grey rectangle shows the possible numbers of
-individuals with body length $\geq$ the
-body length of individuals in that bin (horizontal
-span is the same as for the green lines). The maximum number of such individuals
-is the same as the green line, and the minimum number (bottom of grey rectangle)
-is the total number of individuals $\geq$ the bin's maximum. By definition, this is then the
-green line for the next bin. This plotting method allows us to properly represent the
-discrete binned data on a continuous scale.
-The text
-in (a) gives the MLE for the length size-spectrum exponent
-$b$, and the sample size $n$.
-
-```{r caption}
-caption_index <- 1   # index to use for detailed captions
-```
-
-TODO (adapting from MEPS vignette; double check the numbers): For example, the first bin is for lengths
-between `r res_all_strata[[caption_index]]$counts_per_bin_desc$binMin[1]` and `r res_all_strata[[caption_index]]$counts_per_bin_desc$binMax[1]` mm, and
-countains a count of `r f(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount[1])` individuals. We don't know
-how those individual's lengths are distributed within the bin. The green line on
-the y-axis illustrates that the number of individuals $\geq$ the minimum of the
-bin (`r res_all_strata[[caption_index]]$counts_per_bin_desc$binMin[1]` mm) is
-`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount), 1)`, namely
-all the individuals because this is the minimum length in the data. The grey
-shaded area shows the uncertainty -- the number (on the y-axis) of possible individual individuals with
-body mass $\geq$ any x-value within the bin is between
-`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount) - res_all_strata[[caption_index]]$counts_per_bin_desc$binCount[1], 1)`
-and
-`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount), 1)`
-(all individuals in the bin could be the smallest
-length within the bin or the highest).
 
 
 For 2004: Clearly that final right-hand value looks like an outlier, and it is just for
@@ -306,3 +264,45 @@ filter(only_2014, x == 70) %>% as.data.frame()   # TODO something coarser also,
 filter(only_2014, x == 69) %>% as.data.frame()   # only 5
 filter(only_2014, x == 71) %>% as.data.frame()   # only 4
 ```
+
+## Caption for ISD plot
+
+Caption for ISD plot:
+
+The y-axis is (a) linear and (b) logarithmic. For each bin, the horizontal green
+line shows the range of body lengths of that bin, with its value
+on the y-axis corresponding to the total number of individuals in bins whose
+minima are $\geq$ the bin's minimum. By definition, this includes all individual
+in that bin; for example, all $n$ individuals are $\geq$ the minimum of
+the first (left-most) bin, so that bin is at $n$ on the y-axis. The vertical
+span of each grey rectangle shows the possible numbers of
+individuals with body length $\geq$ the
+body length of individuals in that bin (horizontal
+span is the same as for the green lines). The maximum number of such individuals
+is the same as the green line, and the minimum number (bottom of grey rectangle)
+is the total number of individuals $\geq$ the bin's maximum. By definition, this is then the
+green line for the next bin. This plotting method allows us to properly represent the
+discrete binned data on a continuous scale.
+The text
+in (a) gives the MLE for the length size-spectrum exponent
+$b$, and the sample size $n$.
+
+```{r caption}
+caption_index <- 1   # index to use for detailed captions
+```
+
+TODO (adapting from MEPS vignette; double check the numbers): For example, the first bin is for lengths
+between `r res_all_strata[[caption_index]]$counts_per_bin_desc$binMin[1]` and `r res_all_strata[[caption_index]]$counts_per_bin_desc$binMax[1]` mm, and
+countains a count of `r f(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount[1])` individuals. We don't know
+how those individual's lengths are distributed within the bin. The green line on
+the y-axis illustrates that the number of individuals $\geq$ the minimum of the
+bin (`r res_all_strata[[caption_index]]$counts_per_bin_desc$binMin[1]` mm) is
+`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount), 1)`, namely
+all the individuals because this is the minimum length in the data. The grey
+shaded area shows the uncertainty -- the number (on the y-axis) of possible individual individuals with
+body mass $\geq$ any x-value within the bin is between
+`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount) - res_all_strata[[caption_index]]$counts_per_bin_desc$binCount[1], 1)`
+and
+`r f(sum(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount), 1)`
+(all individuals in the bin could be the smallest
+length within the bin or the highest).

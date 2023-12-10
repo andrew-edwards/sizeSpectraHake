@@ -46,7 +46,7 @@ fit_all_years <- function(raw_simp_prop,
 
   results <- list()        # All the results, each element of list corresponds
                            # to a list of results for that year
-browser()
+
   for(i in 1:length(full_years)){
     bin_width <- filter(bin_width_each_year,
                         year == full_years[i]) %>%
@@ -81,18 +81,18 @@ browser()
            counts_per_bin_desc <- counts_per_bin,
            counts_per_bin_desc <- counts_per_bin[-(1:(max_ind-1)), ])
 
-    MLEbin_res <-  calcLike(negLL.fn = negLL.PLB.binned,
-                            p = -1.5,
-                            w = c(dplyr::pull(counts_per_bin_desc,
-                                              binMin),
-                                  dplyr::pull(counts_per_bin_desc,
-                                              binMax)[nrow(counts_per_bin_desc)]),
-                                  # all minima plus max of final bin
-                            d = dplyr::pull(counts_per_bin_desc,
-                                            binCount),
-                            J = nrow(counts_per_bin_desc),   # = num.bins
-                            # suppress.warnings = TRUE,
-                            vecDiff = 15)             # increase this if hit a bound
+    MLEbin_res <-  sizeSpectra::calcLike(negLL.fn = sizeSpectra::negLL.PLB.binned,
+                                         p = -1.5,
+                                         w = c(dplyr::pull(counts_per_bin_desc,
+                                                           binMin),
+                                               dplyr::pull(counts_per_bin_desc,
+                                                           binMax)[nrow(counts_per_bin_desc)]),
+                                         # all minima plus max of final bin
+                                         d = dplyr::pull(counts_per_bin_desc,
+                                                         binCount),
+                                         J = nrow(counts_per_bin_desc),   # = num.bins
+                                         # suppress.warnings = TRUE,
+                                         vecDiff = 15)             # increase this if hit a bound
 
     results[[i]] <- list(
       year = full_years[i],

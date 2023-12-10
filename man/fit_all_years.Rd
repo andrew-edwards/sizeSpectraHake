@@ -7,6 +7,8 @@
 fit_all_years(
   raw_simp_prop,
   strata = c("C", "NC", "S", "SC", "N"),
+  min_year_to_analyse,
+  max_year_to_analyse = NULL,
   bin_width_each_year
 )
 }
@@ -15,6 +17,11 @@ fit_all_years(
 
 \item{strata}{which strata to use, default is the full coast (excluding ones
 that should not be used)}
+
+\item{min_year_to_analyse}{minimum year to analyse}
+
+\item{max_year_to_analyse}{maximum year to analyse, if \code{NULL} (the default)
+then does the last year of data}
 
 \item{bin_width_each_year}{tibble of bin widths in each year, calculated
 earlier TODO could include as a data object in the package}

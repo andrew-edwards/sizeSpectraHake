@@ -50,23 +50,21 @@ plot.hake_spectra_results <- function(res,
       border_col = col_hist
     }
 
-
-
     plot(make_hist_full,
          main = all_years[i],
          xlim = xlim_global,
          col = col_hist,
          border = border_col)
 
-    ISD_bin_plot_nonoverlapping(binValsTibble = res[[i]]$counts_per_bin_desc,
-                                b.MLE = res[[i]]$b_l,
-                                b.confMin = res[[i]]$b_l_confMin,
-                                b.confMax = res[[i]]$b_l_confMax,
-                                yBig.inc = 10000,
-                                xLab = "Body length (x), mm",
-                                year = all_years[i],
-                                xlim = xlim_global,
-                                ...)
+    sizeSpectra::ISD_bin_plot_nonoverlapping(binValsTibble = res[[i]]$counts_per_bin_desc,
+                                             b.MLE = res[[i]]$b_l,
+                                             b.confMin = res[[i]]$b_l_confMin,
+                                             b.confMax = res[[i]]$b_l_confMax,
+                                             yBig.inc = 10000,
+                                             xLab = "Body length (x), mm",
+                                             year = all_years[i],
+                                             xlim = xlim_global,
+                                             ...)
     par(mfrow = c(1,1))
   }
 }
