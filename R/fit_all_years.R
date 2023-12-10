@@ -2,7 +2,7 @@
 ##'
 ##'
 ##' @param raw_simp_prop input tibble of correct format (see .Rmd)
-##' @param strata which strata to use, default is the full coast (excluding ones
+##' @param strata_to_analyse which strata to use, default is the full coast (excluding ones
 ##'   that should not be used)
 ##' @param min_year_to_analyse minimum year to analyse
 ##' @param max_year_to_analyse maximum year to analyse, if `NULL` (the default)
@@ -33,7 +33,7 @@
 ##'                     bin_width_each_year = bin_width_each_year)
 ##' }
 fit_all_years <- function(raw_simp_prop,
-                          strata = c("C", "NC", "S", "SC", "N"),
+                          strata_to_analyse = c("C", "NC", "S", "SC", "N"),
                           min_year_to_analyse,
                           max_year_to_analyse = NULL,
                           bin_width_each_year
@@ -43,6 +43,8 @@ fit_all_years <- function(raw_simp_prop,
   if(is.null(max_year_to_analyse)){
     max_year_to_analyse <- max(full_years)
   }
+
+TODO - never used max_year_to_analyse - need to do that.
 
   results <- list()        # All the results, each element of list corresponds
                            # to a list of results for that year
@@ -54,7 +56,7 @@ fit_all_years <- function(raw_simp_prop,
 
     data_this_year <- filter(raw_simp_prop,
                              year == full_years[i],
-                             strata %in% strata)
+                             strata %in% strata_to_analyse)
 # Changed that %in% from ==, may have been while some earlier results were maybe
     # wrong.
 

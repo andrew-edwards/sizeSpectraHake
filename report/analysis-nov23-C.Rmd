@@ -66,6 +66,10 @@ min_year_to_analyse <- ifelse(strata_to_analyse == "C",
                               1994,
                               2001)      # data look okay but Iain had said 2004 for
                                          # all strata, so check TODO
+
+# TODO temporary:
+min_year_to_analyse <- 2004
+
 ```
 
 ## Do analysis and plot results
@@ -74,9 +78,11 @@ These arguments shouldn't need changing. See end of file for caption. Do the ana
 
 ```{r fitallyearsfunction}
 res_all_years <- fit_all_years(raw_simp_prop,
-                               strata = strata_to_analyse,
+                               strata_to_analyse = strata_to_analyse,
                                bin_width_each_year = bin_width_each_year,
-                               min_year_to_analyse = min_year_to_analyse)
+                               min_year_to_analyse = min_year_to_analyse,
+                               max_year_to_analyse = 2004)   # TODO temporary,
+                                        # needs removing. (One year Some years were
 
 MLEbin_res_all_years <- MLEbin_results_extract(res_all_years)  # tibble of
                                         # annual results
@@ -98,15 +104,46 @@ plot(res_all_years)
 Clearly some years have some of the data recorded at 10 mm resolution instead of
 1 mm. John had mentioned this: "the PWCC/NWFSC data (mostly OR/WA data 2001-2009) only has measurements to the nearest cm.  Long story, but that is what they recorded (NWC was leading that effort, ".
 
-Look into 2004 raw data more carefully.
+Look into 2004 raw data more carefully. Be good to get the 2004 out of these
+names, or definitely make a function TODO.
+
+EXPLORATORY:
 
 ```{r raw2004}
 raw_2004 <- filter(raw_simp_prop,
                    year == 2004,
                    strata %in% strata_to_analyse)
-
+raw_2004
 summary(raw_2004)
 # filter(raw_2004, prop_measured < 0.01) %>% as.data.frame()
+
+filter(raw_2004, x == 30) %>% select(-"strata")
+
+# Vector of measured lengths that aren't multiples of 10 mm
+non_10_mm_measurements <- unique(raw_2004$x)[unique(raw_2004$x) %% 10 > 0] %>% sort()
+
+non_10_mm_measurements
+
+# ids which do not have non-10-mm measurements; i.e. only have 10 mm ones (the
+# 1-mm ids can still have some 10-mm measurements)
+ids_with_mm_accuracy <- filter(raw_2004,
+                               x %in% non_10_mm_measurements)$id %>%
+                                                            unique()
+raw_with_10_mm_only <- filter(raw_2004,
+                              !(id %in% ids_with_mm_accuracy))
+raw_with_10_mm_only %>% a()
+
+ids_with_10_mm_only <- unique(raw_with_10_mm_only$id)
+
+ids_with_10_mm_only
+
+sum(raw_with_10_mm_only$scaled_counts)
+
+sum(raw_2004$scaled_counts)
+# So the 10-mm only don't seem to be the bulk of the measurements, which is what
+# I'd expected. Have assumed that if measuring to 10 mm then doing that for the
+# whole id (haul).
+
 
 
 ```

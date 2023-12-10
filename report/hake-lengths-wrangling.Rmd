@@ -272,7 +272,9 @@ raw_simp_nov23 <- select(raw_nov23,
   mutate(id = paste(year,       # Hayden's id, to make calcs easier
                     strata,     # than grouping, and to more easily compare any results.
                     haul_no,
-                    sep = "_")) %>%
+                    sep = "_"),
+         haul_no = as.factor(haul_no),
+         id = as.factor(id)) %>%
   arrange(year,
           strata,
           haul_no)
