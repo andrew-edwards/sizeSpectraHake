@@ -1,0 +1,274 @@
+---
+title: "Analyses of hake lengths using size spectra approach -- original data, just strata C"
+author: "Andrew Edwards"
+output: pdf_document
+fontsize: 12pt
+date: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "",
+  fig.width = 10,
+  fig.height = 8
+)
+```
+
+```{r, packages}
+library(dplyr)
+library(sizeSpectra)    # Probably need latest version
+library(pacea)
+# load_all()  # maybe best to do manually.
+```
+
+## Load wrangled data
+
+Have NOT looked at results carefully yet for this. Wanting to do nov23 data as
+that's what we'll use going forward.
+
+This is what should be changed for each analysis. `orig` or `nov23` and `C` or
+`all_strata`. Comment one in each pair of these first four lines. And change the title.
+```{r load}
+dataset <- "orig"
+# dataset <- "nov23"
+
+strata_to_analyse <- "C"
+# strata_to_analyse <- c("C", "NC", "S", "SC", "N")    # equals strata_to_keep;
+                                                       # may want to do more individually
+# If add anything else need to change this_analysis below and min_year_to_analyse
+
+# Do these explicitly so consistent to add future ones. (Or make a paste0 version.
+if(dataset == "orig"){
+  raw_simp_prop <- readRDS("raw_simp_prop_orig.rds")
+  bin_width_each_year <- readRDS("bin_width_each_year_orig.rds")
+}
+
+if(dataset == "nov23"){
+  raw_simp_prop <- readRDS("raw_simp_prop_nov23.rds")
+  bin_width_each_year <- readRDS("bin_width_each_year_nov23.rds")
+}
+
+# What to append to filenames for anything we're saving; not changing object
+# names within this analysis
+this_analysis <- ifelse(strata_to_analyse == "C",
+                        paste0(dataset, "_C"),
+                        paste0(dataset, "_all_strata"))
+
+# Automatically get right start year, may need tweaking. Max year default is
+# last year of data.
+min_year_to_analyse <- ifelse(strata_to_analyse == "C",
+                              1994,
+                              2001)      # data look okay but Iain had said 2004 for
+                                         # all strata, so check TODO
+```
+
+## Do analysis and plot results
+
+These arguments shouldn't need changing. See end of file for caption. Do the analysis:
+
+```{r fitallyearsfunction}
+res_all_years <- fit_all_years(raw_simp_prop,
+                               strata = strata_to_keep,
+                               bin_width_each_year = bin_width_each_year,
+                               min_year_to_analyse = min_year_to_analyse)
+
+MLEbin_res_all_years <- MLEbin_results_extract(res_all_years)  # tibble of
+                                        # annual results
+
+# plot(res_all_years, par.cex = 0.8,) in next chunk but not echoed
+```
+
+\clearpage
+
+```{r, plotall, fig.pos = 'p', fig.height = 6.9, echo=FALSE}
+plot(res_all_years,
+     par.cex = 0.8,)    # For ISD plot
+```
+
+
+
+So $b$ is the length size-spectrum exponent, $b_l$. To convert to weight
+exponent, $b_w$, for a length-weight exponent of $\beta$ (writing up derivation elsewhere):
+
+$b_w = (b_l + 1) / \beta - 1$
+
+or, going the other way,
+
+$b_l = \beta (b_w + 1) - 1$
+
+For example, for first year we have, assuming $\beta = 3.1802$ for now:
+```{r, bweight}
+b_weight <- b_l_to_b_w(res_all_years[[1]]$b_l)
+b_weight
+```
+
+## NEED TO DO FOR EACH ANALYSIS TYPE.... go through ISD plots to decide which years should be excluded
+
+So go through the histograms and ISD plots, checking outliers and 'rounded to 10
+mm' type issues, and taking into account sample size `n`. Comment below on
+each year (with exclude if warranted, else include):
+
+NOT DONE YET FOR THIS ANALYSIS
+
+2004 - could remove single big value, but need justification, include: (note,
+index not guaranteed here:)
+`r tail(res_all_years[[caption_index]]$counts_per_bin_desc)`. We could go back and
+try removing, but that's pretty arbitrary. Include.
+
+2005 - n = 16, exclude
+
+2006 - n = 24, exclude
+
+2007 - does have the hump of larger sizes
+
+2008 - slight hump of larger sizes
+
+2009 - good fit
+
+2010 - slightly weird fit, with one somewhat larger size
+
+2011 - great fit, very slight hump of larger sizes
+
+2012 - good fit though strange gap before large set of sizes
+
+2013 - pretty good fit
+
+2014 - slightly unusual fit, with a bit of a hump
+
+2015 - goodish fit, with 'missing' larger sizes
+
+2016 - very nice fit, $n$ almost 50,000
+
+2017 - good fit, with one somewhat larger size
+
+2018 - good fit, with 'missing' larger sizes
+
+2019 - weird fit because only four bins, because mode is so high - strange one,
+exclude (but look into more?)
+
+2020 - $n=10$ so exclude (explains the large confidence intervals in the plot
+with it included)
+
+2021 - kind of funny, though need to redo without bins TODO. Looks like a small
+sample may have got scaled up a lot? Looks like scaling up of counts happened for a
+few sampled fish in one poorly-sampled haul? But prob for 0.01 mm, may change
+for 1 mm.
+
+
+This suggests
+excluding analyses for years:
+```{r excludeyears}
+years_exclude <- c(2005, 2006, 2019, 2020)
+```
+
+## Show the plot for all years and write notes
+
+Now plot the estimated hake recruitments of age-0's for each year against the
+corresponding $b_l$, and add the uncertainties.
+
+```{r, plotrecruitments}
+plot_b_recruitment(MLEbin_res_all_years,
+                   years_exclude = years_exclude)
+```
+
+TODO notes not yet for this actual plot.
+
+So, what does this mean. Large recruitment years ($> 20\%$ of the 2010
+recruitment) always seem to have a higher $b_l$. Note that 2021 has a long tail
+of uncertainty (reaching quite high), but that's because it will have only been
+observed in one year of commercial data.
+
+A high $b_l$ seems necessary for high recruitment, but is not sufficient. Kind
+of makes sense -- other things can happen during further life-history stages.
+
+But, a low $b_l$ seems to imply low recruitment. This could be a heads up for
+advice.
+
+Of course, this may well all fall apart with further analyses, validation, and more
+data.
+
+In terms of the assessment done at the start of 2023, we have to assume recruitment
+for recruitment in 2022 (which hasn't been observed in data in
+the assessment model, but is what we can calculate $b_l$ for, hopefully in a
+timely fashion) and 2023 (which are just being spawned while we are doing the
+2023 assessment). The assumption is based on the stock recruitment curve with a
+large uncertainty, and is shown in blue on the plot.
+
+A look at the values for each year, includes converted $b_w$ value:
+```{r MLEbinvalues}
+select(MLEbin_res_all_years, -c("b_w_confMin", "b_w_confMax", "b_l_stdErr")) %>%
+  a()
+```
+
+A quick look at including all years (useful for looking at recent ones that
+should be plotted differently TODO):
+
+```{r, plotrecruitmentsexcludenone}
+plot_b_recruitment(MLEbin_res_all_years)
+```
+
+
+## Might be useful for analysing
+
+```{r lookatme}
+only_2008 <- filter(raw_simp_prop,
+                    year == 2008)
+filter(only_2008, prop_measured < 0.01) %>% as.data.frame()
+
+only_2014 <- filter(raw_simp_prop,
+                    year == 2014)
+summary(only_2014)
+filter(only_2014, prop_measured < 0.01) %>% as.data.frame()  # none
+filter(only_2014, prop_measured < 0.05) %>% as.data.frame()  #
+
+filter(only_2014, x == 70) %>% as.data.frame()   # TODO something coarser also,
+                                        # these are lots of SC - so again with
+                                        # the coarse measurements. Aha - those
+                                        # 70 measurements (the max) should be
+                                        # spread out.
+filter(only_2014, x == 69) %>% as.data.frame()   # only 5
+filter(only_2014, x == 71) %>% as.data.frame()   # only 4
+```
+
+## Caption for ISD plot
+
+Caption for ISD plot:
+
+The y-axis is (a) linear and (b) logarithmic. For each bin, the horizontal green
+line shows the range of body lengths of that bin, with its value
+on the y-axis corresponding to the total number of individuals in bins whose
+minima are $\geq$ the bin's minimum. By definition, this includes all individual
+in that bin; for example, all $n$ individuals are $\geq$ the minimum of
+the first (left-most) bin, so that bin is at $n$ on the y-axis. The vertical
+span of each grey rectangle shows the possible numbers of
+individuals with body length $\geq$ the
+body length of individuals in that bin (horizontal
+span is the same as for the green lines). The maximum number of such individuals
+is the same as the green line, and the minimum number (bottom of grey rectangle)
+is the total number of individuals $\geq$ the bin's maximum. By definition, this is then the
+green line for the next bin. This plotting method allows us to properly represent the
+discrete binned data on a continuous scale.
+The text
+in (a) gives the MLE for the length size-spectrum exponent
+$b$, and the sample size $n$.
+
+```{r caption}
+caption_index <- 1   # index to use for detailed captions
+```
+
+TODO (adapting from MEPS vignette; double check the numbers): For example, the first bin is for lengths
+between `r res_all_years[[caption_index]]$counts_per_bin_desc$binMin[1]` and `r res_all_years[[caption_index]]$counts_per_bin_desc$binMax[1]` mm, and
+countains a count of `r f(res_all_years[[caption_index]]$counts_per_bin_desc$binCount[1])` individuals. We don't know
+how those individual's lengths are distributed within the bin. The green line on
+the y-axis illustrates that the number of individuals $\geq$ the minimum of the
+bin (`r res_all_years[[caption_index]]$counts_per_bin_desc$binMin[1]` mm) is
+`r f(sum(res_all_years[[caption_index]]$counts_per_bin_desc$binCount), 1)`, namely
+all the individuals because this is the minimum length in the data. The grey
+shaded area shows the uncertainty -- the number (on the y-axis) of possible individual individuals with
+body mass $\geq$ any x-value within the bin is between
+`r f(sum(res_all_years[[caption_index]]$counts_per_bin_desc$binCount) - res_all_years[[caption_index]]$counts_per_bin_desc$binCount[1], 1)`
+and
+`r f(sum(res_all_years[[caption_index]]$counts_per_bin_desc$binCount), 1)`
+(all individuals in the bin could be the smallest
+length within the bin or the highest).
