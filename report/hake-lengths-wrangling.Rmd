@@ -324,13 +324,16 @@ summary_nov23 <- summarise(group_by(raw_simp_prop_nov23,
 summary_nov23 %>% as.data.frame()
 ```
 
-## Save two wrangled data files
+## Save two wrangled data files and bin widths
 
 Best not to save them as package objects as will get confusing when not committing them.
 
 ```{r savedata}
 saveRDS(raw_simp_prop_orig, "raw_simp_prop_orig.rds")
 saveRDS(raw_simp_prop_nov23, "raw_simp_prop_nov23.rds")
+
+saveRDS(bin_width_each_year_orig, "bin_width_each_year_orig.rds")
+saveRDS(bin_width_each_year_nov23, "bin_width_each_year_nov23.rds")
 ```
 
 ## Some ideas to keep here for reference
@@ -369,3 +372,5 @@ TODO functionalise with functions early on here, may want to do in a new package
 
 Last (commented code) shows that only 2021 has lengths to 0.01 mm. So deal with that
 separately below.
+
+$b_l$ to $b_w$ figures -- see code at end of `hake-lengths-analysis.Rmd`.

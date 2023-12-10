@@ -4,6 +4,9 @@
 ##' @param raw_simp_prop input tibble of correct format (see .Rmd)
 ##' @param strata which strata to use, default is the full coast (excluding ones
 ##'   that should not be used)
+##' @param min_year_to_analyse minimum year to analyse
+##' @param max_year_to_analyse maximum year to analyse, if `NULL` (the default)
+##'   then does the last year of data
 ##' @param bin_width_each_year tibble of bin widths in each year, calculated
 ##'   earlier TODO could include as a data object in the package
 ##' @return list of class `hake_spectra_results` with one element for each year,
@@ -31,17 +34,23 @@
 ##' }
 fit_all_years <- function(raw_simp_prop,
                           strata = c("C", "NC", "S", "SC", "N"),
+                          min_year_to_analyse,
+                          max_year_to_analyse = NULL,
                           bin_width_each_year
-                        ){
+                          ){
   full_years <- sort(unique(raw_simp_prop$year))
+
+  if(is.null(max_year_to_analyse)){
+    max_year_to_analyse <- max(full_years)
+  }
 
   results <- list()        # All the results, each element of list corresponds
                            # to a list of results for that year
-
+browser()
   for(i in 1:length(full_years)){
     bin_width <- filter(bin_width_each_year,
                         year == full_years[i]) %>%
-      pull(bin_width)
+      dplyr::pull(bin_width)
 
     data_this_year <- filter(raw_simp_prop,
                              year == full_years[i],

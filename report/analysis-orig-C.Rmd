@@ -49,35 +49,54 @@ though. Separate files may be best - easier to compare.
 
 ## Load wrangled data
 
-This is what should be changed for each analysis.
-
+This is what should be changed for each analysis. `orig` or `nov23` and `C` or
+`all_strata`. Comment one in each pair of these first four lines.
 ```{r load}
-raw_simp_prop <- readRDS("raw_simp_prop_orig.rds")
-this_analysis <- "orig_C"    # what to append to filenames for anything we're
-                             # saving, else keep object names the same here
+dataset <- "orig"
+# dataset <- "nov23"
+
 strata_to_analyse <- "C"
 # strata_to_analyse <- c("C", "NC", "S", "SC", "N")    # equals strata_to_keep;
                                                        # may want to do more individually
-# Automatically get right start year, may need tweaking.
-ifelse(strata_to_analyse == "C",
-  min_year_to_analyse = 1994,
-  min_year_to_analyse = 2001)      # data look okay but Iain had said 2004 for
-                                   # all strata, so check TODO
+# If add anything else need to change this_analysis below and min_year_to_analyse
+
+# Do these explicitly so consistent to add future ones. (Or make a paste0 version.
+if(dataset == "orig"){
+  raw_simp_prop <- readRDS("raw_simp_prop_orig.rds")
+  bin_width_each_year <- readRDS("bin_width_each_year_orig.rds")
+}
+
+if(dataset == "nov23"){
+  raw_simp_prop <- readRDS("raw_simp_prop_nov23.rds")
+  bin_width_each_year <- readRDS("bin_width_each_year_nov23.rds")
+}
+
+# What to append to filenames for anything we're saving; not changing object
+# names within this analysis
+this_analysis <- ifelse(strata_to_analyse == "C",
+                        paste0(dataset, "_C"),
+                        paste0(dataset, "_all_strata"))
+
+# Automatically get right start year, may need tweaking. Max year default is
+# last year of data.
+min_year_to_analyse <- ifelse(strata_to_analyse == "C",
+                              1994,
+                              2001)      # data look okay but Iain had said 2004 for
+                                         # all strata, so check TODO
 ```
 
 ## Do analysis
 
-HERE  NEXT - put argument in `fit_all_years()` for min year and max year, and
-use `min_year_to_analyse` and then filter in the function.
+HERE - gives error.
 
-TODO `fit_all_years` should automatically take into account years based on
-strata choice. Maybe not though as should make it explicit each time.
+These arguments shouldn't need changing. Do the analysis:
+
 ```{r fitallyearsfunction}
 res_all_years <- fit_all_years(raw_simp_prop,
                                strata = strata_to_keep,
-                               bin_width_each_year = bin_width_each_year)
+                               bin_width_each_year = bin_width_each_year,
+                               min_year_to_analyse = min_year_to_analyse)
 # plot(res_all_years, par.cex = 0.8,) in next chunk but not echoed
-
 ```
 
 \clearpage
@@ -109,8 +128,8 @@ $b$, and the sample size $n$.
 
 ```{r caption}
 caption_index <- 1   # index to use for detailed captions
-
 ```
+
 TODO (adapting from MEPS vignette; double check the numbers): For example, the first bin is for lengths
 between `r res_all_strata[[caption_index]]$counts_per_bin_desc$binMin[1]` and `r res_all_strata[[caption_index]]$counts_per_bin_desc$binMax[1]` mm, and
 countains a count of `r f(res_all_strata[[caption_index]]$counts_per_bin_desc$binCount[1])` individuals. We don't know
@@ -181,7 +200,7 @@ MLEbin_res_all_years <- tibble::tibble(
 TODO 2021 figures, dig into data, looks like scaling up of counts happened for a
 few sampled fish in one poorly-sampled haul?
 
-## Go through ISD plots to decide which years should be excluded
+## NEED TO DO FOR EACH ANALYSIS TYPE.... go through ISD plots to decide which years should be excluded
 
 So go through the ISD plots, taking into account sample size `n`. Comments on
 each year (with exclude if warranted, else include):  TODO these might be strata
@@ -264,138 +283,15 @@ timely fashion) and 2023 (which are just being spawned while we are doing the
 2023 assessment). The assumption is based on the stock recruitment curve with a
 large uncertainty, and is shown in blue on the next plot.
 
-## Results for new data from December 2023
+## Might be useful for analysing
 
-Not looked at in detail yet HERE. Need switches for strata and years.
-
-HERE Might not be strata C. Do each choice as a separate file.
-2014 for C should only have a few at 70. `filter(raw_simp_prop, year == 2014,
-strata == "C", x == 70)` only has two lines as shown here:
-
-First just strata C:
-
-```{r fitallyearsfunctionnew}
-res_all_years_new <- fit_all_years(raw_simp_prop_new,
-                                   strata = "C", #strata_to_keep,
-                                   bin_width_each_year = bin_width_each_year_new)
-# plot(res_all_years_new, par.cex = 0.8,) in next chunk but not echoed
-
-# HERE something wrong, as this clearly has lots in 70 in 2014:
-res_all_years_new[[21]]$year
-# res_all_years_new[[21]]$counts_per_bin %>% as.data.frame()
-res_all_years_new[[21]]$counts_per_bin %>% filter(binMid == 70)
-# HERE it's not using just strata C for some reason
-# but
-filter(raw_simp_prop_new, year == 2014, strata == "C", x == 70) %>% a()
-```
-
-\clearpage
-
-```{r, plotallnew, fig.pos = 'p', fig.height = 6.9, echo=FALSE}
-plot(res_all_years_new,
-     par.cex = 0.8,)    # For ISD plot
-```
-
-TODO make this a function:
-
-```{r saveallresnew}
-# Save all results in MLEbin_res_all_years
-# TODO make a function
-MLEbin_res_all_years_new <- tibble::tibble(
-                                  year = unlist(lapply(res_all_years_new, '[[',
-                                                       "year")),
-                                  xmin = unlist(lapply(res_all_years_new, '[[',
-                                                       "xmin")),
-                                  xmax = unlist(lapply(res_all_years_new, '[[',
-                                                       "xmax")),
-                                  n = unlist(lapply(res_all_years_new, '[[', "n")),
-                                  b_l = unlist(lapply(res_all_years_new, '[[',
-                                                      "b_l")),
-                                  b_l_confMin = unlist(lapply(res_all_years_new,
-                                                              '[[',
-                                                              "b_l_confMin")),
-                                  b_l_confMax = unlist(lapply(res_all_years_new,
-                                                              '[[',
-                                                              "b_l_confMax"))) %>%
-  mutate(b_w = b_l_to_b_w(b_l),
-         b_w_confMin = b_l_to_b_w(b_l_confMin),
-         b_w_confMax = b_l_to_b_w(b_l_confMax))
-  # if want standard errors:
-  # b_l_stdErr = (abs(b_l_confMin - b_l) + abs(b_l_confMax - b_l))/(2*1.96)
-
-years_exclude_new <- NULL # c(2005, 2006, 2019, 2020)
-```
-
-TODO need to look at figures and work out which years should be excluded.
-
-```{r, plotrecruitmentsnew}
-plot_b_recruitment(MLEbin_res_all_years_new,
-                   xlim = c(-30, 0))
-```
-
-Now all strata from 2001 onwards TODO check, Iain said 2004:
-
-```{r fitallyearsfunctionnewall}
-res_all_years_new_all <- fit_all_years(filter(raw_simp_prop_new,
-                                              year >= 2001),
-                                       strata = strata_to_keep,
-                                       bin_width_each_year = bin_width_each_year_new)
-# plot(res_all_years_new, par.cex = 0.8,) in next chunk but not echoed
-```
-
-\clearpage
-
-```{r, plotallnewall, fig.pos = 'p', fig.height = 6.9, echo=FALSE}
-plot(res_all_years_new_all,
-     par.cex = 0.8,)    # For ISD plot
-```
-
-TODO make this a function TODO annotate C in previous ones
-
-```{r saveallresnewall}
-# Save all results in MLEbin_res_all_years
-# TODO make a function
-MLEbin_res_all_years_new_all <- tibble::tibble(
-                                  year = unlist(lapply(res_all_years_new_all, '[[',
-                                                       "year")),
-                                  xmin = unlist(lapply(res_all_years_new_all, '[[',
-                                                       "xmin")),
-                                  xmax = unlist(lapply(res_all_years_new_all, '[[',
-                                                       "xmax")),
-                                  n = unlist(lapply(res_all_years_new_all, '[[', "n")),
-                                  b_l = unlist(lapply(res_all_years_new_all, '[[',
-                                                      "b_l")),
-                                  b_l_confMin = unlist(lapply(res_all_years_new_all,
-                                                              '[[',
-                                                              "b_l_confMin")),
-                                  b_l_confMax = unlist(lapply(res_all_years_new_all,
-                                                              '[[',
-                                                              "b_l_confMax"))) %>%
-  mutate(b_w = b_l_to_b_w(b_l),
-         b_w_confMin = b_l_to_b_w(b_l_confMin),
-         b_w_confMax = b_l_to_b_w(b_l_confMax))
-  # if want standard errors:
-  # b_l_stdErr = (abs(b_l_confMin - b_l) + abs(b_l_confMax - b_l))/(2*1.96)
-
-years_exclude_new_all <- c(2020, 2021, 2022, 2023)  # Had these earlier, not looked in detail yet: c(2005, 2006, 2019, 2020)
-```
-
-TODO need to look at figures and work out which years should be excluded.
-
-```{r, plotrecruitmentsnewall}
-plot_b_recruitment(MLEbin_res_all_years_new_all,
-                   years_exclude = years_exclude_new_all)
-#                   xlim = c(-30, 0))
-```
-
-HERE
 ```{r lookatme}
-only_2008 <- filter(raw_simp_prop_new,
+only_2008 <- filter(raw_simp_pro,
                     year == 2008,
                     strata %in% strata_to_keep)
 filter(only_2008, prop_measured < 0.01) %>% as.data.frame()
 
-only_2014 <- filter(raw_simp_prop_new,
+only_2014 <- filter(raw_simp_prop,
                     year == 2014,
                     strata %in% strata_to_keep)
 summary(only_2014)
@@ -409,33 +305,4 @@ filter(only_2014, x == 70) %>% as.data.frame()   # TODO something coarser also,
                                         # spread out.
 filter(only_2014, x == 69) %>% as.data.frame()   # only 5
 filter(only_2014, x == 71) %>% as.data.frame()   # only 4
-```
-
-## Moving $b_l$ vs. $b_w$ figures to here.
-
-```{r blbwrelationship}
-# par(mfrow=c(2,1))
-
-b_l_vec <- seq(-10, 0, 0.1)
-
-plot(b_l_vec,
-     b_l_to_b_w(b_l_vec),
-     xlab = "b_l",
-     ylab = "b_w",
-     ylim = range(b_l_vec))
-
-b_w_vec = seq(-4, 0, 0.1)
-
-plot(b_w_vec,
-     b_w_to_b_l(b_w_vec),
-     xlab = "b_w",
-     ylab = "b_l",
-     xlim = range(b_w_to_b_l(b_w_vec)))
-```
-
-So those are pretty straight, suggesting indeed a linear relationship. Can
-calculate derivative analytically. TODO in other .tex write up.
-
-```{r exit, eval=FALSE, echo=FALSE}
-knitr::knit_exit()
 ```
