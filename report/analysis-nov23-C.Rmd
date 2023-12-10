@@ -1,5 +1,5 @@
 ---
-title: "Analyses of hake lengths using size spectra approach -- original data, just strata C"
+title: "Analyses of hake lengths using size spectra approach -- nov23 data, just strata C"
 author: "Andrew Edwards"
 output: pdf_document
 fontsize: 12pt
@@ -18,20 +18,25 @@ knitr::opts_chunk$set(
 ```{r, packages}
 library(dplyr)
 library(sizeSpectra)    # Probably need latest version
-library(pacea)
-# load_all()  # maybe best to do manually.
+library(pacea)          # Need for hake_recruitment_over_2010 which cannot be exported
+if(!"sizeSpectraHake" %in% (.packages())){
+  load_all()      # Obviously update manually if updated package
+}
+
 ```
 
 ## Load wrangled data
 
-Have NOT looked at results carefully yet for this. Wanting to do nov23 data as
-that's what we'll use going forward.
+Have NOT looked at results carefully yet for this.
+
+TODO save results at end, and copy that into `...orig-C.Rmd`.
 
 This is what should be changed for each analysis. `orig` or `nov23` and `C` or
-`all_strata`. Comment one in each pair of these first four lines. And change the title.
+`all_strata`. Comment one in each pair of these first four lines. And change the
+filename and title.
 ```{r load}
-dataset <- "orig"
-# dataset <- "nov23"
+# dataset <- "orig"
+dataset <- "nov23"
 
 strata_to_analyse <- "C"
 # strata_to_analyse <- c("C", "NC", "S", "SC", "N")    # equals strata_to_keep;
@@ -69,7 +74,7 @@ These arguments shouldn't need changing. See end of file for caption. Do the ana
 
 ```{r fitallyearsfunction}
 res_all_years <- fit_all_years(raw_simp_prop,
-                               strata = strata_to_keep,
+                               strata = strata_to_analyse,
                                bin_width_each_year = bin_width_each_year,
                                min_year_to_analyse = min_year_to_analyse)
 
@@ -82,38 +87,43 @@ MLEbin_res_all_years <- MLEbin_results_extract(res_all_years)  # tibble of
 \clearpage
 
 ```{r, plotall, fig.pos = 'p', fig.height = 6.9, echo=FALSE}
-plot(res_all_years,
-     par.cex = 0.8,)    # For ISD plot
-```
-
-
-
-So $b$ is the length size-spectrum exponent, $b_l$. To convert to weight
-exponent, $b_w$, for a length-weight exponent of $\beta$ (writing up derivation elsewhere):
-
-$b_w = (b_l + 1) / \beta - 1$
-
-or, going the other way,
-
-$b_l = \beta (b_w + 1) - 1$
-
-For example, for first year we have, assuming $\beta = 3.1802$ for now:
-```{r, bweight}
-b_weight <- b_l_to_b_w(res_all_years[[1]]$b_l)
-b_weight
+plot(res_all_years)
+#     par.cex = 0.8,)    # For ISD plot
 ```
 
 ## NEED TO DO FOR EACH ANALYSIS TYPE.... go through ISD plots to decide which years should be excluded
+
+### 10 mm resolution
+
+Clearly some years have some of the data recorded at 10 mm resolution instead of
+1 mm. John had mentioned this: "the PWCC/NWFSC data (mostly OR/WA data 2001-2009) only has measurements to the nearest cm.  Long story, but that is what they recorded (NWC was leading that effort, ".
+
+Look into 2004 raw data more carefully.
+
+```{r raw2004}
+raw_2004 <- filter(raw_simp_prop,
+                   year == 2004,
+                   strata %in% strata_to_analyse)
+
+summary(raw_2004)
+# filter(raw_2004, prop_measured < 0.01) %>% as.data.frame()
+
+
+```
+
+
 
 So go through the histograms and ISD plots, checking outliers and 'rounded to 10
 mm' type issues, and taking into account sample size `n`. Comment below on
 each year (with exclude if warranted, else include):
 
-NOT DONE YET FOR THIS ANALYSIS
+1994 -
+
+NOT DONE YET FOR THIS ANALYSIS:
 
 2004 - could remove single big value, but need justification, include: (note,
 index not guaranteed here:)
-`r tail(res_all_years[[caption_index]]$counts_per_bin_desc)`. We could go back and
+`r # tail(res_all_years[[caption_index]]$counts_per_bin_desc)`. We could go back and
 try removing, but that's pretty arbitrary. Include.
 
 2005 - n = 16, exclude
@@ -159,7 +169,7 @@ for 1 mm.
 This suggests
 excluding analyses for years:
 ```{r excludeyears}
-years_exclude <- c(2005, 2006, 2019, 2020)
+years_exclude <- NULL #c(2005, 2006, 2019, 2020)
 ```
 
 ## Show the plot for all years and write notes

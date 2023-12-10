@@ -24,6 +24,8 @@ library(pacea)
 
 ## Load wrangled data
 
+USE nov23-C as template, even for redoing this.
+
 Have NOT looked at results carefully yet for this. Wanting to do nov23 data as
 that's what we'll use going forward.
 

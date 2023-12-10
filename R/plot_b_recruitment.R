@@ -32,7 +32,7 @@
 ##' # See .Rmd
 ##' }
 plot_b_recruitment <- function(b_tibble,
-                               recruitment_tibble = sizeSpectra::hake_recruitment_over_2010,
+                               recruitment_tibble = hake_recruitment_over_2010,
                                years_exclude = NULL,
                                conf_col = "grey",
                                label_col = "red",

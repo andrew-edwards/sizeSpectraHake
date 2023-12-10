@@ -54,8 +54,10 @@ fit_all_years <- function(raw_simp_prop,
 
     data_this_year <- filter(raw_simp_prop,
                              year == full_years[i],
-                             strata == strata)
-#stop("that line above should be strata %in% strata I think, change names, and check it works for doing C. Explains why none of results for C have panned out, maybe")
+                             strata %in% strata)
+# Changed that %in% from ==, may have been while some earlier results were maybe
+    # wrong.
+
     # Bins and the counts in each bin
     counts_per_bin <- summarise(group_by(data_this_year,
                                          x),
