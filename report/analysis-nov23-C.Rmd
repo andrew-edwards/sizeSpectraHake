@@ -219,7 +219,11 @@ This suggests
 excluding analyses for years, for now (TODO fix the 10-mm obvious issues, check
 some of them again):
 ```{r excludeyears}
-years_exclude <- c(2001:2009, 2019, 2020)
+years_exclude <- c(2001:2009, 2019, 2020, 2021:2023) # TODO adapt plotting
+                                        # function to show last years without
+# recruitment estimates
+# years_exclude <- c(2005:2006, 2019, 2020, 2021:2023) # to look at all except
+# obvious ones to miss out
 ```
 
 TODO histogram for 2006 has only a few values, but still looks different to
