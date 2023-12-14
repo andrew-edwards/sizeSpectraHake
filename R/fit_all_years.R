@@ -48,9 +48,8 @@ fit_all_years <- function(raw_simp_prop,
   if(is.null(max_year_to_analyse)){
     max_year_to_analyse <- max(full_years)
   }
-
+# browser()
   years_to_analyse <- min_year_to_analyse:max_year_to_analyse
-
 
   results <- list()        # All the results, each element of list corresponds
                            # to a list of results for that year
@@ -61,12 +60,13 @@ fit_all_years <- function(raw_simp_prop,
                         year == years_to_analyse[i]) %>%
       dplyr::pull(bin_width)
 
+print(years_to_analyse[i])
     data_this_year <- filter(raw_simp_prop,
                              year == years_to_analyse[i],
                              strata %in% strata_to_analyse)
 # Changed that %in% from ==, may have been while some earlier results were maybe
 # wrong. Doesn't seem to have fixed it though. TODO remove once resolved
-browser()
+# browser()
     # Bins and the counts in each bin
     counts_per_bin <- summarise(group_by(data_this_year,
                                          x),
@@ -92,6 +92,12 @@ browser()
            counts_per_bin_desc <- counts_per_bin,
            counts_per_bin_desc <- counts_per_bin[-(1:(max_ind-1)), ])
 
+    vecDiff_use <- ifelse(years_to_analyse[i] == 2006 &
+                          strata_to_analyse == "C",
+                          200,
+                          15)   # TODO add dataset == "nov23"  also, need to
+                                # input into function
+
     MLEbin_res <-  sizeSpectra::calcLike(negLL.fn = sizeSpectra::negLL.PLB.binned,
                                          p = -1.5,
                                          w = c(dplyr::pull(counts_per_bin_desc,
@@ -103,7 +109,7 @@ browser()
                                                          binCount),
                                          J = nrow(counts_per_bin_desc),   # = num.bins
                                          # suppress.warnings = TRUE,
-                                         vecDiff = 15)             # increase this if hit a bound
+                                         vecDiff = vecDiff_use)             # increase this if hit a bound
 
     results[[i]] <- list(
       year = years_to_analyse[i],

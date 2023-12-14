@@ -67,8 +67,8 @@ min_year_to_analyse <- ifelse(strata_to_analyse == "C",
                                          # all strata, so check TODO
 
 # TODO temporary to figure out 10-mm issue
-min_year_to_analyse <- 2004
-max_year_to_analyse <- 2004
+# min_year_to_analyse <- 2006 #2014 #NULL  #2004
+max_year_to_analyse <- NULL #2006 #2014# NULL  # 2004
 ```
 
 ## Do analysis and plot results
@@ -207,6 +207,12 @@ excluding analyses for years:
 ```{r excludeyears}
 years_exclude <- NULL #c(2005, 2006, 2019, 2020)
 ```
+
+TODO histogram for 2006 has only a few values, but still looks different to
+original analyses based on La Jolla file (looking at
+`hake-lengths-strata-C-all-years.html`); can check when re-reun this file on
+orig data. Here, even setting vecDiff to 1000 it didn't fit, as only two
+bins. Works for vecDiff = 200, so use that.
 
 ## Show the plot for all years and write notes
 
