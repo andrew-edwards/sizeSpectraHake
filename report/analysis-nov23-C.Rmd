@@ -22,7 +22,6 @@ library(pacea)          # Need for hake_recruitment_over_2010 which cannot be ex
 if(!"sizeSpectraHake" %in% (.packages())){
   load_all()      # Obviously update manually if updated package
 }
-
 ```
 
 ## Load wrangled data
@@ -67,9 +66,9 @@ min_year_to_analyse <- ifelse(strata_to_analyse == "C",
                               2001)      # data look okay but Iain had said 2004 for
                                          # all strata, so check TODO
 
-# TODO temporary:
+# TODO temporary to figure out 10-mm issue
 min_year_to_analyse <- 2004
-
+max_year_to_analyse <- 2004
 ```
 
 ## Do analysis and plot results
@@ -81,7 +80,7 @@ res_all_years <- fit_all_years(raw_simp_prop,
                                strata_to_analyse = strata_to_analyse,
                                bin_width_each_year = bin_width_each_year,
                                min_year_to_analyse = min_year_to_analyse,
-                               max_year_to_analyse = 2004)   # TODO temporary,
+                               max_year_to_analyse = max_year_to_analyse)   # TODO temporary,
                                         # needs removing. (One year Some years were
 
 MLEbin_res_all_years <- MLEbin_results_extract(res_all_years)  # tibble of
@@ -276,6 +275,70 @@ filter(only_2014, x == 70) %>% as.data.frame()   # TODO something coarser also,
                                         # spread out.
 filter(only_2014, x == 69) %>% as.data.frame()   # only 5
 filter(only_2014, x == 71) %>% as.data.frame()   # only 4
+
+only_2014_C <- filter(only_2014, strata == "C") %>%
+  select(-c("year", "strata"))
+only_2014_C %>% a()
+
+sum(only_2014_C$scaled_counts)
+# = 543.49, but plot using fit_all_years adds up to about 1,000
+# copied from `fit_all_years()`
+# HERE HERE
+# Not as drastically wrong as 2004, but still different.
+bin_width <- 1
+counts_per_bin_2014_C <- summarise(group_by(only_2014_C,
+                                            x),
+                                   binCount = sum(scaled_counts)) %>%
+      mutate(binMid = x,         # Assume these are midpoints, but TODO check
+             binMin = binMid - bin_width/2,
+             binMax = binMid + bin_width/2) %>%
+      arrange(binMid) %>%
+      select(-"x")
+
+# Copying from fit_all_years to do explicity
+if(!expect_equal(min(diff(counts_per_bin_2014_C$binMid)), bin_width)){
+      stop(paste0("Double check the value in bin_width_each_year; may have to relax this condition; this failed for year ", years_to_analyse[i]))
+
+      # Having no adjacent bins with values will cause this to fail, which seems
+      # unlikely), but would want to manually look into and then tweak
+      # condition. Does not fail for 2021 even with 0.01 mm bins.
+    }
+
+    max_ind <- which.max(counts_per_bin_2014_C$binCount)
+
+    ifelse(max_ind == 1,
+           counts_per_bin_2014_C_desc <- counts_per_bin_2014_C,
+           counts_per_bin_2014_C_desc <- counts_per_bin_2014_C[-(1:(max_ind-1)), ])
+
+    MLEbin_res <-  sizeSpectra::calcLike(negLL.fn = sizeSpectra::negLL.PLB.binned,
+                                         p = -1.5,
+                                         w = c(dplyr::pull(counts_per_bin_2014_C_desc,
+                                                           binMin),
+                                               dplyr::pull(counts_per_bin_2014_C_desc,
+                                                           binMax)[nrow(counts_per_bin_2014_C_desc)]),
+                                         # all minima plus max of final bin
+                                         d = dplyr::pull(counts_per_bin_2014_C_desc,
+                                                         binCount),
+                                         J = nrow(counts_per_bin_2014_C_desc),   # = num.bins
+                                         # suppress.warnings = TRUE,
+                                         vecDiff = 15)             # increase this if hit a bound
+
+# MLEbin_res
+# $MLE
+# [1] -3.365493
+#
+#$conf
+#[1] -4.317493 -2.434493
+
+# This is different from fit_all_years() result of b=-25
+# Try that again:
+res_all_years_just_2014_C <- fit_all_years(raw_simp_prop,
+                               strata_to_analyse = strata_to_analyse,
+                               bin_width_each_year = bin_width_each_year,
+                               min_year_to_analyse = 2014,
+                               max_year_to_analyse = 2014)
+
+# Gives me the same answer. Something messing with running this .Rmd. Trying it again.
 ```
 
 ## Caption for ISD plot

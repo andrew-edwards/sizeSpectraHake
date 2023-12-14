@@ -4,9 +4,10 @@
 ##' @param raw_simp_prop input tibble of correct format (see .Rmd)
 ##' @param strata_to_analyse which strata to use, default is the full coast (excluding ones
 ##'   that should not be used)
-##' @param min_year_to_analyse minimum year to analyse
+##' @param min_year_to_analyse minimum year to analyse, if `NULL` (the default)
+##'   then does the first year of data
 ##' @param max_year_to_analyse maximum year to analyse, if `NULL` (the default)
-##'   then does the last year of data
+
 ##' @param bin_width_each_year tibble of bin widths in each year, calculated
 ##'   earlier TODO could include as a data object in the package
 ##' @return list of class `hake_spectra_results` with one element for each year,
@@ -34,32 +35,38 @@
 ##' }
 fit_all_years <- function(raw_simp_prop,
                           strata_to_analyse = c("C", "NC", "S", "SC", "N"),
-                          min_year_to_analyse,
+                          min_year_to_analyse = NULL,
                           max_year_to_analyse = NULL,
                           bin_width_each_year
                           ){
   full_years <- sort(unique(raw_simp_prop$year))
 
+  if(is.null(min_year_to_analyse)){
+    min_year_to_analyse <- min(full_years)
+  }
+
   if(is.null(max_year_to_analyse)){
     max_year_to_analyse <- max(full_years)
   }
 
-TODO - never used max_year_to_analyse - need to do that.
+  years_to_analyse <- min_year_to_analyse:max_year_to_analyse
+
 
   results <- list()        # All the results, each element of list corresponds
                            # to a list of results for that year
 
-  for(i in 1:length(full_years)){
+
+  for(i in 1:length(years_to_analyse)){
     bin_width <- filter(bin_width_each_year,
-                        year == full_years[i]) %>%
+                        year == years_to_analyse[i]) %>%
       dplyr::pull(bin_width)
 
     data_this_year <- filter(raw_simp_prop,
-                             year == full_years[i],
+                             year == years_to_analyse[i],
                              strata %in% strata_to_analyse)
 # Changed that %in% from ==, may have been while some earlier results were maybe
-    # wrong.
-
+# wrong. Doesn't seem to have fixed it though. TODO remove once resolved
+browser()
     # Bins and the counts in each bin
     counts_per_bin <- summarise(group_by(data_this_year,
                                          x),
@@ -72,7 +79,7 @@ TODO - never used max_year_to_analyse - need to do that.
 
     # Check bin widths are what we prescribed in bin_width_each_year
     if(!expect_equal(min(diff(counts_per_bin$binMid)), bin_width)){
-      stop(paste0("Double check the value in bin_width_year_year; may have to relax this condition; this failed for year ", full_years[i]))
+      stop(paste0("Double check the value in bin_width_each_year; may have to relax this condition; this failed for year ", years_to_analyse[i]))
 
       # Having no adjacent bins with values will cause this to fail, which seems
       # unlikely), but would want to manually look into and then tweak
@@ -99,7 +106,7 @@ TODO - never used max_year_to_analyse - need to do that.
                                          vecDiff = 15)             # increase this if hit a bound
 
     results[[i]] <- list(
-      year = full_years[i],
+      year = years_to_analyse[i],
       bin_width = bin_width,
       xmin = min(counts_per_bin_desc$binMin),
       xmax = max(counts_per_bin_desc$binMax),
