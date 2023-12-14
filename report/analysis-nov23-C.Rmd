@@ -104,7 +104,8 @@ Clearly some years have some of the data recorded at 10 mm resolution instead of
 1 mm. John had mentioned this: "the PWCC/NWFSC data (mostly OR/WA data 2001-2009) only has measurements to the nearest cm.  Long story, but that is what they recorded (NWC was leading that effort, ".
 
 Look into 2004 raw data more carefully. Be good to get the 2004 out of these
-names, or definitely make a function TODO.
+names, or definitely make a function TODO. 13/12/23: 2004 now looks okay,
+thought still a 10-mm issue; worse for other years.
 
 EXPLORATORY:
 
@@ -147,65 +148,78 @@ sum(raw_2004$scaled_counts)
 
 ```
 
-
+## Going through histograms and ISD plots - nov23 and strata C
 
 So go through the histograms and ISD plots, checking outliers and 'rounded to 10
 mm' type issues, and taking into account sample size `n`. Comment below on
 each year (with exclude if warranted, else include):
 
-1994 -
+1994 - good fit, could look at sensitivity to largest fish (causes 62-cm bin to
+be stretched out on log-log plot, though that bin does have more than expected)
 
-NOT DONE YET FOR THIS ANALYSIS:
+1995 - good fit
 
-2004 - could remove single big value, but need justification, include: (note,
-index not guaranteed here:)
-`r # tail(res_all_years[[caption_index]]$counts_per_bin_desc)`. We could go back and
-try removing, but that's pretty arbitrary. Include.
+1996 - good fit, though unusual in that all >50 cm are more frequent than
+expected from PLB
 
-2005 - n = 16, exclude
+1997 - fairly good fit
 
-2006 - n = 24, exclude
+1998 - fairly good, with two 'unexpected' large fish; could test sensitivity,
+but no good reason to exclude them
 
-2007 - does have the hump of larger sizes
+1999 - fairly good fit, but looks like a blip at 60-cm that might be affecting
+it slightly, and doesn't really fit in with nearby bins (perhaps because it's
+including 55-60?).
 
-2008 - slight hump of larger sizes
+2000 - good fit, but larger are less than expected
 
-2009 - good fit
+2001- 2004 definitely a 10-mm issue going on currently, exclude for now TODO look into
 
-2010 - slightly weird fit, with one somewhat larger size
+2005 - $n=15$, maybe even less were actually measured, exclude
 
-2011 - great fit, very slight hump of larger sizes
+2006 - $n=6$, maybe even less were actually measured, exclude
 
-2012 - good fit though strange gap before large set of sizes
+2007-2009 - 10-mm issue TODO, exclude
 
-2013 - pretty good fit
+2010 - good fit, 67 and 74 look a bit large - maybe check the scaling up of those
 
-2014 - slightly unusual fit, with a bit of a hump
+2011 - great fit, though very possible 10-mm issue TODO
 
-2015 - goodish fit, with 'missing' larger sizes
+2012 - kind of good fit though strange gap before large set of sizes, lots of
+similar frequencies implying similar scaling up; look into data in a bit more detail
 
-2016 - very nice fit, $n$ almost 50,000
+2013 - fairly good fit
 
-2017 - good fit, with one somewhat larger size
+2014 - slightly unusual fit, with a bit of a hump, possible 10-mm issue but only
+with 60-mm?
 
-2018 - good fit, with 'missing' larger sizes
+2015 - fairly good fit, but again with 60-mm looking overly common
 
-2019 - weird fit because only four bins, because mode is so high - strange one,
-exclude (but look into more?)
+2016 - very nice fit, $n$ almost 50,000 (TODO though check actual number measured), slightly less than expected in larger classes
+
+2017 - good fit, with one or two outlier 69-mm fish, a lot of 52-mm (but nothing
+inbetween)
+
+2018 - goodish fit, with some 'missing' larger sizes
+
+2019 - weird fit because only five bins, because mode is so high - strange one,
+exclude (but look into more?) TODO
 
 2020 - $n=10$ so exclude (explains the large confidence intervals in the plot
 with it included)
 
-2021 - kind of funny, though need to redo without bins TODO. Looks like a small
-sample may have got scaled up a lot? Looks like scaling up of counts happened for a
-few sampled fish in one poorly-sampled haul? But prob for 0.01 mm, may change
-for 1 mm.
+2021 - fairly good, looks like first bin is quite common and may be what's
+giving the sharp decline.
 
+2022 - possible 30-mm and 40-mm look high? 10-mm issue? Otherwise a nice fit.
+
+2023 - fairly good fit.
 
 This suggests
-excluding analyses for years:
+excluding analyses for years, for now (TODO fix the 10-mm obvious issues, check
+some of them again):
 ```{r excludeyears}
-years_exclude <- NULL #c(2005, 2006, 2019, 2020)
+years_exclude <- c(2001:2009, 2019, 2020)
 ```
 
 TODO histogram for 2006 has only a few values, but still looks different to
