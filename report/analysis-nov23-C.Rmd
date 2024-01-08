@@ -43,6 +43,9 @@ strata_to_analyse <- "C"
 # strata_to_analyse <- c("C", "NC", "S", "SC", "N")    # equals strata_to_keep;
                                                        # may want to do more individually
 # If add anything else need to change this_analysis below and min_year_to_analyse
+# North to south:
+# WA, OR, N (north), NC (north central), C (core), SC (south central), S
+# (south); see Figure 1 of Santora et al. 2021.
 
 # Do these explicitly so consistent to add future ones. (Or make a paste0 version.
 if(dataset == "orig"){
@@ -124,24 +127,24 @@ summary(raw_2004)
 filter(raw_2004, x == 30) %>% select(-"strata")
 
 # Vector of measured lengths that aren't multiples of 10 mm
-non_10_mm_measurements <- unique(raw_2004$x)[unique(raw_2004$x) %% 10 > 0] %>% sort()
+non_10_mm_measurements_2014 <- unique(raw_2004$x)[unique(raw_2004$x) %% 10 > 0] %>% sort()
 
-non_10_mm_measurements
+non_10_mm_measurements_2014
 
 # ids which do not have non-10-mm measurements; i.e. only have 10 mm ones (the
 # 1-mm ids can still have some 10-mm measurements)
-ids_with_mm_accuracy <- filter(raw_2004,
-                               x %in% non_10_mm_measurements)$id %>%
+ids_with_mm_accuracy_2014 <- filter(raw_2004,
+                               x %in% non_10_mm_measurements_2014)$id %>%
                                                             unique()
-raw_with_10_mm_only <- filter(raw_2004,
-                              !(id %in% ids_with_mm_accuracy))
-raw_with_10_mm_only %>% a()
+raw_with_10_mm_only_2014 <- filter(raw_2004,
+                              !(id %in% ids_with_mm_accuracy_2014))
+raw_with_10_mm_only_2014 %>% a()
 
-ids_with_10_mm_only <- unique(raw_with_10_mm_only$id)
+ids_with_10_mm_only_2014 <- unique(raw_with_10_mm_only_2014$id)
 
-ids_with_10_mm_only
+ids_with_10_mm_only_2014
 
-sum(raw_with_10_mm_only$scaled_counts)
+sum(raw_with_10_mm_only_2014$scaled_counts)
 
 sum(raw_2004$scaled_counts)
 # So the 10-mm only don't seem to be the bulk of the measurements, the latter (I
@@ -153,11 +156,11 @@ So redo analysis for 2004, excluding the 10-mm only hauls.
 
 ```{r fitallyears2004excl}
 raw_simp_prop_2004_excl <- filter(raw_simp_prop,
-                                  id %in% ids_with_mm_accuracy)
+                                  id %in% ids_with_mm_accuracy_2014)
 
 # raw_2004 above already did strata
 expect_equal(raw_simp_prop_2004_excl, filter(raw_2004, id %in%
-                                                       ids_with_mm_accuracy))
+                                                       ids_with_mm_accuracy_2014))
 
 res_2004_excl <- fit_all_years(raw_simp_prop_2004_excl,
                                strata_to_analyse = strata_to_analyse,
@@ -175,6 +178,7 @@ MLEbin_res_2004_excl <- MLEbin_results_extract(res_2004_excl)
 plot(res_2004_excl, par.cex = 0.8)
 ```
 
+TODO
 Confused as to what data are -- need to go back to data, see this:
 
 ```{r rawsimp2004exclsumm}
@@ -191,50 +195,20 @@ raw_simp_prop_2004_excl %>%
   a()
 ```
 
-### Check same idea with 2016 data that look to have no 10-mm issue
-
-Copy above code for 2004 and replace with 2016. Obviously functionalise if worth
-doing at some point.
-
-```{r raw2016}
-raw_2016 <- filter(raw_simp_prop,
-                   year == 2016,
-                   strata %in% strata_to_analyse)
-raw_2016
-summary(raw_2016)
-# filter(raw_2016, prop_measured < 0.01) %>% as.data.frame()
-
-filter(raw_2016, x == 30) %>% select(-"strata")
-
-# Vector of measured lengths that aren't multiples of 10 mm
-non_10_mm_measurements <- unique(raw_2016$x)[unique(raw_2016$x) %% 10 > 0] %>% sort()
-
-non_10_mm_measurements
-
-# ids which do not have non-10-mm measurements; i.e. only have 10 mm ones (the
-# 1-mm ids can still have some 10-mm measurements)
-ids_with_mm_accuracy <- filter(raw_2016,
-                               x %in% non_10_mm_measurements)$id %>%
-                                                            unique()
-raw_with_10_mm_only <- filter(raw_2016,
-                              !(id %in% ids_with_mm_accuracy))
-raw_with_10_mm_only %>% a()
-```
-
-So there aren't any 10-mm only in 2016, as expected from visually seeing the
-histogram. So code works for empty - HERE so functionalise this check so can do
-for each year.
-
-END of 2016 based on 2004 analysis
 
 ## Realised can actually do that for all years in one go
+
+Had redone the above for 2016 which has no 10-mm only hauls (so verifying the
+code works for such years), then realised can just do all years in one go.
 
 ```{r non10mmallyears}
 raw_simp_prop_strata <- filter(raw_simp_prop,
                                strata %in% strata_to_analyse)
 
 # Vector of measured lengths that aren't multiples of 10 mm
-non_10_mm_measurements <- unique(raw_simp_prop_strata$x)[unique(raw_simp_prop_strata$x) %% 10 > 0] %>% sort()
+non_10_mm_measurements <-
+  unique(raw_simp_prop_strata$x)[unique(raw_simp_prop_strata$x) %% 10 > 0] %>%
+  sort()
 
 non_10_mm_measurements
 
@@ -242,10 +216,13 @@ non_10_mm_measurements
 # 1-mm ids can still have some 10-mm measurements)
 ids_with_mm_accuracy <- filter(raw_simp_prop_strata,
                                x %in% non_10_mm_measurements)$id %>%
-                                                            unique()
+                        unique()
+
 raw_with_10_mm_only <- filter(raw_simp_prop_strata,
                               !(id %in% ids_with_mm_accuracy))
 raw_with_10_mm_only
+
+summary(raw_with_10_mm_only)
 
 ids_with_10_mm_only <- unique(raw_with_10_mm_only$id)
 
@@ -254,13 +231,27 @@ ids_with_10_mm_only
 sum(raw_with_10_mm_only$scaled_counts)
 
 sum(raw_simp_prop_strata$scaled_counts)
+
+sum(raw_with_10_mm_only$scaled_counts) / sum(raw_simp_prop_strata$scaled_counts)
+
 # So the 10-mm only don't seem to be the bulk of the measurements, the latter (I
 # think) is what I'd expected. Have assumed that if measuring to 10 mm then doing that for the
-# whole id (haul).
+# whole id (haul). Still 5%, more than I was thinking.
 
 # Need to check how many measurements there are for each of these id.
-raw_with_10_mm_only %>% group_by(id) %>% summarise(year = unique(year), n()) %>% a()
+haul_with_10_mm_only <-
+  raw_with_10_mm_only %>%
+  group_by(id) %>%
+  summarise(year = unique(year),
+            "10_mm_only_per_haul" = n())
+
+haul_with_10_mm_only %>% a()
+
 ```
+
+Can see no hauls before 2000
+
+
 HERE HERE - think about the above. Looks good, and makes sense. Can keep ones
 that have 1 or 2 with 10-mm only, but 2001-2009 look like they indeed are the
 only years that need dealing with.
