@@ -178,8 +178,39 @@ MLEbin_res_2004_excl <- MLEbin_results_extract(res_2004_excl)
 plot(res_2004_excl, par.cex = 0.8)
 ```
 
-TODO
-Confused as to what data are -- need to go back to data, see this:
+## Checking data are what I thought
+
+Was confused as to what data are, but it was me. This should
+clarify. `number_measured` should be per haul, so check that:
+
+```{r rawsimp2004exclsumm2}
+raw_simp_prop_2004_excl %>%
+  #  select(-c("year", "strata")) %>%
+  group_by(id) %>%
+  summarise(id = unique(id),
+            number_of_rows = n(),
+            number_measured = unique(number_measured)) %>%
+  mutate(measured_is_more = (number_measured >= number_of_rows)) %>%
+  a()
+
+```
+
+Had done this, but in the original spreadsheet, lines 15964-15968 has 5 rows for
+2004 haul 36 strata C (as does the saved `hake83to2023lengths.csv`, but my code only has one:
+```{r rawsimp200436C}
+filter(raw_simp_prop, id == "2004_C_36")
+```
+
+So something wrong with my data wrangling somewhere. Need to hunt backwards.
+
+
+
+
+
+
+
+
+This helped me come up with the question above.
 
 ```{r rawsimp2004exclsumm}
 # So first 5 make sense, but if 6th one (different haul) has 5 measured what are the other measurements?

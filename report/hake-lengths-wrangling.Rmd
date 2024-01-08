@@ -266,9 +266,10 @@ raw_simp_nov23 <- select(raw_nov23,
                        number_measured = NMEAS, # TODO double check (if results
                                         # with orig don't match then look more)
                        exp_value = EXP) %>%
-  filter(x >= 28,
-         x < 90,
-         strata %in% strata_to_keep) %>%
+#  filter(x >= 28,                         # TODO this should be done at the
+#                                        # analysis stage TODO HERE HERE
+#         x < 90,
+   filter(      strata %in% strata_to_keep) %>%
   mutate(id = paste(year,       # Hayden's id, to make calcs easier
                     strata,     # than grouping, and to more easily compare any results.
                     haul_no,
