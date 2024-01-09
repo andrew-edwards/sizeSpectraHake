@@ -327,6 +327,49 @@ summary_nov23 <- summarise(group_by(raw_simp_prop_nov23,
 summary_nov23 %>% as.data.frame()
 ```
 
+### Check `number_measured` agrees with number of rows
+
+`number_measured` should, for each `id`, be the number of rows for that `id`.
+
+```{r checknumber}
+check_number_measured <- summarise(group_by(raw_simp_prop_nov23,
+                                            id),
+                                   number_measured_sum = sum(number_measured),
+                                   number_rows = n())
+#                                   number_diff = number_measured - number_rows)
+```
+
+Gave a WARNING with `unique(number_measured)` instead of `sum()`. So the issue
+is that `number_measured` is not unique to a haul, sometimes two lots are done.
+
+NOT ACTUALLY THE sum, need to do in two steps. Current answer is actually the
+square of `number_rows`.
+So HERE HERE, next check `number_rows` is the sum of `number_measured` for each
+id, then use `sum` not `unique` either earlier or later to save data. Want to
+have one row for each `id`, and don't currently have that.
+
+CAN PROB DELETE THIS - maybe commit first then delete, so not completely lost.
+which I think means `number_measured` is indeed not
+unique. Should dig into to get rid of warning, though not easy. Maybe need to do
+by each year separately. Aha, `mtcars` example in `?dplyr` does give rows with
+the grouping repeated, so here I should have multiple rows with the same `id`.
+
+```{r checknumber2}
+id_repeated_ind <- table(check_number_measured$id)[which(table(check_number_measured$id) > 1)]
+id_repeated <- filter(check_number_measured, id %in% names(id_repeated_ind))
+id_repeated
+```
+Aha, but they look like they add up
+
+```{r checknumber3}
+id_repeated_grouped <- summarise(group_by(id_repeated,
+                                          id),
+                                   number_measured = unique(number_measured),
+                                   number_rows = n())
+
+```
+
+
 ## Save two wrangled data files and bin widths
 
 Best not to save them as package objects as will get confusing when not committing them.
