@@ -124,8 +124,8 @@ raw_2004_summ_a_orig
 raw_2004_summ_b_orig <- summarise(group_by(raw_2004_orig,
                                            YEAR,
                                            HAUL_NO),
-                                  cpue_yoy = unique(CPUE_YOY))  # No error but has not
-                                                                # grouped by HAUL_NO, only YEAR:
+                                  cpue_yoy = unique(CPUE_YOY))  # No error but
+        # message only mentions grouped by YEAR, not HAUL_NO also. Same above also.
 raw_2004_summ_b_orig
 # Yet:
 length(unique(raw_2004_summ_b_orig$HAUL_NO))   # also has 92 rows. So seems okay,
@@ -266,10 +266,7 @@ raw_simp_nov23 <- select(raw_nov23,
                        number_measured = NMEAS, # TODO double check (if results
                                         # with orig don't match then look more)
                        exp_value = EXP) %>%
-#  filter(x >= 28,                         # TODO this should be done at the
-#                                        # analysis stage TODO HERE HERE
-#         x < 90,
-   filter(      strata %in% strata_to_keep) %>%
+  filter(strata %in% strata_to_keep) %>%
   mutate(id = paste(year,       # Hayden's id, to make calcs easier
                     strata,     # than grouping, and to more easily compare any results.
                     haul_no,
