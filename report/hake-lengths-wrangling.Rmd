@@ -22,6 +22,10 @@ library(pacea)
 # load_all()  # Don't need for the wrangling.
 ```
 
+**Saving this as `hake-length-wrangling-***.pdf` with the figuring out of two sets in a haul, then simplifying down
+again going forward**. Note that `id_repeated_2` here will be the `id_repeated`
+in future .pdfs.
+
 Data from the NOAA SWFSC Rockfish Recruitment and Ecosystem Assessment Survey
 (RREAS). Original file from Iain and Hayden (originally from John Field), November 2023 version directly from
 John Field.
@@ -348,7 +352,8 @@ unique, so using the suggested `reframe` instead:
 check_number_measured <- reframe(group_by(raw_simp_prop_nov23,
                                             id),
                                    number_measured = unique(number_measured),
-                                   number_rows = n())
+                                 number_rows = n())
+check_number_measured
 ```
 
 So this allows two rows for some ids. These ids are:
@@ -360,10 +365,89 @@ id_repeated <- filter(check_number_measured,
 id_repeated
 ```
 
-(Note that later we find that `2022_C_5` has two sets but with the same
+Note that later we find that `2022_C_5` has two sets but with the same
 `total_no`, so need to deal with that early on to distinguish sets.
 
-HERE HERE HERE - work out where to do the fix to deal with `2022_C_5`.
+Work out where to do the fix to deal with `2022_C_5`, repeating
+the above but for `total_no` also, should have any that have different
+`total_no` but the same `number_measured` (`2022_C_5` is the opposite, so
+doesn't change):
+```{r checknumber99}
+check_number_measured_2 <- reframe(group_by(raw_simp_prop_nov23,
+                                            id),
+                                   number_measured = unique(number_measured),
+                                   total_no = unique(total_no),
+                                   number_rows = n())
+check_number_measured_2
+```
+This has four more rows than `check_number_measured`. The ids are
+```{r idstworows2}
+id_repeated_ind_2 <-
+  table(check_number_measured_2$id)[which(table(check_number_measured_2$id) > 1)]
+id_repeated_2 <- filter(check_number_measured_2,
+                      id %in% names(id_repeated_ind_2))
+id_repeated_2
+droplevels(id_repeated_2$id) %>%
+  table() %>%
+  range()     # shows only 2's, no 3's.
+```
+The new ids that we didn't have in `id_repeated_ind` are:
+```{r idstworows3}
+id_repeated_2[which(!(id_repeated_2$id %in% id_repeated$id)), ]
+
+# And the other way around, has none:
+id_repeated[which(!(id_repeated$id %in% id_repeated_2$id)), ]
+```
+
+So `2022_C_5` is in both, because `total_no` is the same for each sample.
+
+We now try the third option which is grouping only by `total_no`:
+```{r checknumber98}
+check_number_measured_3 <- reframe(group_by(raw_simp_prop_nov23,
+                                            id),
+                                   total_no = unique(total_no),
+                                   number_rows = n())
+check_number_measured_3
+```
+This has three more rows than `check_number_measured` and one less than
+`check_number_measured_2`, which makes sense (`check_number_measured_2` has
+`check_number_measured` plus any new ones here, which should drop out as
+`2022_C_5`:
+```{r idstworows3a}
+id_repeated_ind_3 <-
+  table(check_number_measured_3$id)[which(table(check_number_measured_3$id) > 1)]
+id_repeated_3 <- filter(check_number_measured_3,
+                        id %in% names(id_repeated_ind_3))
+id_repeated_3
+droplevels(id_repeated_3$id) %>%
+  table() %>%
+  range()     # shows only 2's, no 3's.
+```
+The new ids that we didn't have in `id_repeated_ind` are:
+```{r idstworows4}
+id_repeated_3[which(!(id_repeated_3$id %in% id_repeated$id)), ]
+
+# And the other way around, has just 2022_C_5
+id_repeated[which(!(id_repeated$id %in% id_repeated_3$id)), ]
+```
+Last is correctly the one we had not originally caught.
+
+So `id_repeated_2` should have everything, so these should both be empty:
+```{r idcheck}
+id_repeated_2[which(!(id_repeated$id %in% id_repeated_2$id)), ]
+id_repeated_2[which(!(id_repeated_3$id %in% id_repeated_2$id)), ]
+```
+
+Great. `id_repeated_2` is what we want to use going forward.
+
+Going to save this pdf in commit after `**7dd0fe3`, and call it
+`hake-lengths-wrangling-***.pdf`. Then going to change
+`id_repeated` to what we want it to be (i.e. what `id_repeated_2` is
+here). So will have the .pdf for the explanations, but now we've figured it out
+don't need all the details cluttering up the wrangling.
+HERE HERE HERE
+
+
 
 Also do `summarise` on `check_number_measured` [could also have done on
 `id_repeated`] to group them properly to check the number of rows
