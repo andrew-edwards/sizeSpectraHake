@@ -22,7 +22,7 @@ library(pacea)
 # load_all()  # Don't need for the wrangling.
 ```
 
-**Saving this as `hake-length-wrangling-***.pdf` with the figuring out of two sets in a haul, then simplifying down
+**Saving this as `hake-length-wrangling-3b1ee22.pdf` with the figuring out of two sets in a haul, then simplifying down
 again going forward**. Note that `id_repeated_2` here will be the `id_repeated`
 in future .pdfs.
 
@@ -440,8 +440,9 @@ id_repeated_2[which(!(id_repeated_3$id %in% id_repeated_2$id)), ]
 
 Great. `id_repeated_2` is what we want to use going forward.
 
-Going to save this pdf in commit after `**7dd0fe3`, and call it
-`hake-lengths-wrangling-***.pdf`. Then going to change
+Going to save this pdf as commit after `3b1ee22` (commit after that fills in the
+commit has here), and call it
+`hake-lengths-wrangling-3b1ee22.pdf`. Then going to change
 `id_repeated` to what we want it to be (i.e. what `id_repeated_2` is
 here). So will have the .pdf for the explanations, but now we've figured it out
 don't need all the details cluttering up the wrangling.
