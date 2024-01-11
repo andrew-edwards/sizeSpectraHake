@@ -82,6 +82,8 @@ Each row is a fish (given a `SP_NO`, specimen).
 
 ## Define bin widths for each year
 
+Jump to ``New data set'' section -- don't need annual bin widths any more.
+
 Define bin widths for each year. Original data had 0.01 mm for 2021, which, as
 John explained, is a bit preliminary and they then save it to 1 mm anyway; so
 nov23 data, and presumably onwards, is all to 1mm. so had to make a tibble
@@ -168,7 +170,8 @@ raw_XXXX_summ_orig <- summarise(group_by(filter(raw_orig,
 So each `YEAR-HAUL_NO-STRATA` combination correctly has a unique `CPUE_YOY`;
 hence Hayden used that to assign a `UniqueID`
 
-Check `CPUE_YOY` are all integers (think they are because of one-hour tows; TODO read papers):
+Check `CPUE_YOY` are all integers (think they are because of one-hour tows; TODO
+check, read papers):
 ```{r, validatesp}
 expect_equal(sort(unique(raw_orig$CPUE_YOY)) %>%
              diff() %>%
@@ -245,7 +248,7 @@ sort(unique(raw_simp_prop_orig$x))[1:10]
 
 stopifnot(max(raw_simp_orig$year) == 2021)   # just a check, but will call new
                                         # data something different anyway (and
-                                        # based wrangling on nov23).
+                                        # will base the wrangling on nov23).
 ```
 
 ## New data set
@@ -266,8 +269,7 @@ raw_simp_nov23 <- select(raw_nov23,
                        strata = STRATA,
                        x = STD_LENGTH,
                        total_no = TOTAL_NO,
-                       number_measured = NMEAS, # TODO double check (if results
-                                        # with orig don't match then look more)
+                       number_measured = NMEAS,
                        exp_value = EXP) %>%
   filter(strata %in% strata_to_keep) %>%
   mutate(id = paste(year,       # Hayden's id, to make calcs easier
@@ -442,10 +444,6 @@ raw_simp_prop_nov23_sets <- left_join(raw_simp_prop_nov23,
                                              "total_no",
                                              "number_measured"))
 summary(raw_simp_prop_nov23_sets)
-
-# TODO check prop_measured is the correct thing - thinking it might not be now
-# as done earlier. Aha - may need to be done in ids_sets. Check earlier - think
-# it is correct for each set, and that's what we need.
 ```
 
 
@@ -533,14 +531,8 @@ summary(raw_simp_prop_nov23_sets_resolution)
 
 Then need to do the `wmin` and `wmax` needed for MLEbins.
 
-Just looking at previously saved version that goes into analysis, to check
-formatting, though should be at the end of this current file anyway
-```{r previouslysaved}
-# raw_simp_prop_nov_23  - this was used. But going to rewrite `fit_all_years`
-# anyway, add the bin widths here
-# raw_simp_prop <- readRDS("raw_simp_prop_nov23.rds")
-
-# Think save raw_simp_prop_nov23_sets_resolution  so have full data set in
+```{r makecountsnov23}
+# Will save raw_simp_prop_nov23_sets_resolution  so have full data set in
 # analysis, but also finish wrangling here to what is needed in analysis.
 raw_simp_prop_nov23_sets_resolution %>% a() %>% head(n=10)
 
@@ -584,6 +576,7 @@ counts_nov23
 summary(counts_nov23)
 ```
 Won't need all those columns for the analysis, just `year`, `binCounts`, `wmin`,
+`resolution` (to summarise by)
 `wmax`, and maybe `id_set` but don't think so as going to analyse by year.
 
 And `id`
@@ -594,6 +587,20 @@ filter(counts_nov23,
        id == "2022_C_5") %>%
   select(-c("year", "strata", "haul_no", "id", "resolution")) %>%
   a()
+```
+
+### Double check `prop_measured` is different for different sets
+
+This correctly has different `prop_measured` for the two sets, as defined
+earlier. Just clarifying it's correct.
+```{r checkpropmeasured}
+filter(counts_nov23, id == "2008_C_79") %>%
+  arrange(id_set) %>%
+  a()
+
+# To see individual fish:
+# filter(raw_simp_prop_nov23_sets_resolution, id == "2008_C_79") %>%
+# arrange(id_set) %>% a()
 ```
 
 ## Save two wrangled data files and bin widths
@@ -644,7 +651,7 @@ La Jolla.
 
 D Rename columns for simplicity.
 
-TODO functionalise with functions early on here, may want to do in a new package.
+Could functionalise with functions early on here, may want to do in a new package.
 
 Last (commented code) shows that only 2021 has lengths to 0.01 mm. So deal with that
 separately below.
