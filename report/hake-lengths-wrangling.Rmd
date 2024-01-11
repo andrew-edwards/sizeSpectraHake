@@ -433,9 +433,6 @@ expect_equal(check$diff,
 Great -- the total number measured (as recorded)
 equals the number of rows FOR THAT HAUL, even when there are two sets.
 
-# summarise there gives the warning, as expected. So using reframe.
-```
-
 ### Get `sets` appended to `raw_simp_prop_nov23`
 
 ```{r appending}
@@ -512,7 +509,7 @@ id_sets_resolution <- summarise(group_by(id_sets_unique_x_non_10_mm,
   mutate(resolution = ifelse(one_mm_res, 1, 10)) %>%
   ungroup()
 
-id_sets_resolution  %>% a()
+id_sets_resolution
 
 # Can see from that
 filter(raw_simp_prop_nov23, id == "1994_C_120")
