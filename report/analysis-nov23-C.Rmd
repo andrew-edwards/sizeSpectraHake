@@ -26,12 +26,6 @@ if(!"sizeSpectraHake" %in% (.packages())){
 
 ## Load wrangled data
 
-GO TO HERE HERE
-
-Have NOT looked at results carefully yet for this.
-
-TODO save results at end, and copy that into `...orig-C.Rmd`.
-
 This is what should be changed for each analysis. `orig` or `nov23` and `C` or
 `all_strata`. Comment one in each pair of these first four lines. And change the
 filename and title.
@@ -49,13 +43,14 @@ strata_to_analyse <- "C"
 
 # Do these explicitly so consistent to add future ones. (Or make a paste0 version.
 if(dataset == "orig"){
+  stop("Code from this commit on won't work for this")
   raw_simp_prop <- readRDS("raw_simp_prop_orig.rds")
   bin_width_each_year <- readRDS("bin_width_each_year_orig.rds")
 }
 
 if(dataset == "nov23"){
-  raw_simp_prop <- readRDS("raw_simp_prop_nov23.rds")
-  bin_width_each_year <- readRDS("bin_width_each_year_nov23.rds")
+  raw_simp_prop <- readRDS("raw_simp_prop_nov23_sets_resolution.rds")
+  counts_full <- readRDS("counts_nov23")
 }
 
 # What to append to filenames for anything we're saving; not changing object
@@ -70,6 +65,8 @@ min_year_to_analyse <- ifelse(strata_to_analyse == "C",
                               1994,
                               2001)      # data look okay but Iain had said 2004 for
                                          # all strata, so check TODO
+# TODO see if don't need that, expect min should be in data anyway once filtered
+# strata C
 
 # TODO temporary to figure out 10-mm issue
 # min_year_to_analyse <- 2006 #2014 #NULL  #2004
@@ -79,10 +76,103 @@ max_year_to_analyse <- NULL #2006 #2014# NULL  # 2004
 ## Do analysis and plot results
 
 These arguments shouldn't need changing. See end of file for caption. Do the
-analysis (this chunk is **CACHED**): NEED TO SET UP CACHED DIRECTORY BASED ON
-DATA AND STRATA
+analysis (this chunk is **CACHED**):
 
-```{r fitallyearsfunction, cache = TRUE}
+Copying cached directories as `...before-resolving-10mm` before changing code.
+
+TODO - do one year first, then change `fit_all_years` to loop over all years.
+
+
+Now do the data preparation first, maybe no need to functionalise.
+```{r dataprep}
+min_wmin_to_consider <- 27.5
+max_wmax_to_consider <- 89.5
+
+counts_full
+
+# Need to get into format for dataBinForLike in negLL.PLB.bins.species, with
+# year to loop over that
+
+counts_per_bin_per_set_id <- summarise(group_by(counts_full,
+                                                id_set,
+                                                wmin),    # wmin will work for 1 mm and 10mm
+                                       # because id_set distinguishes
+                                       year = unique(year),
+                                       strata = unique(strata),
+                                       spec_code = unique(resolution),
+                                       number = sum(binCount),
+                                       wmin = unique(wmin),
+                                       wmax = unique(wmax)) %>%
+  filter(strata %in% strata_to_analyse,
+         wmin >= min_wmin_to_consider) %>%
+  ungroup()
+
+counts_per_bin_per_set_id
+summary(counts_per_bin_per_set_id)
+```
+
+Now fit one year, say 1994:
+```{r oneyearfit}
+counts_per_bin_year <- filter(counts_per_bin_per_set_id,
+                              year == 1994)
+counts_per_bin <- summarise(group_by(counts_per_bin_year,
+                                     wmin,
+                                     spec_code),
+                            number = sum(number),
+                            wmax = max(wmax)) %>%
+  arrange(wmin) %>%
+  relocate(wmin,
+           wmax,
+           Number = number,
+           specCode = spec_code) %>%
+  ungroup()
+counts_per_bin %>% a()
+
+max_ind <- which.max(counts_per_bin$Number)
+max_ind
+
+if(max_ind == 1){
+  counts_per_bin_desc <- counts_per_bin} else {
+  counts_per_bin_desc <- counts_per_bin[-(1:(max_ind-1)), ]
+}
+
+counts_per_bin_desc
+
+# TODO - need this when looping over years
+## vecDiff_use <- ifelse(years_to_analyse[i] == 2006 &
+##                       strata_to_analyse == "C",
+##                       200,
+##                       15)   # TODO add dataset == "nov23"  also, need to
+##                                 # input into function
+
+## HERE HERE HERE - have to deal with the 1mm and 10mm bins. Aha - need to use
+## MLEbins and see vignette. But 1994 has none of those, summary(counts_per_bin_year)
+## But gives the right answer. So then make loop to go over years here, then
+## maybe make a function (might not be worth it, easier here to dig into
+## things), then have to figure out hist figure - first just use 1-mm bins for
+## it. Idea on walk was to overlay the 10-mm bins in different colour, hope they
+## don't make much difference to picking xmin.
+
+n = sum(counts_per_bin_desc$Number)
+xmin = min(counts_per_bin_desc$wmin)
+xmax = max(counts_per_bin_desc$wmax)
+
+MLEbins_one_year <- calcLike(negLL.fn = negLL.PLB.bins.species,
+                             p = -1.9,
+                             suppress.warnings = FALSE,
+                             dataBinForLike = counts_per_bin_desc,
+                             n = n,
+                             xmin = xmin,
+                             xmax = xmax,
+                             vecDiff = 1)   # had 15 in vecDiff_use but taking
+                                        # forever, and that was for MLEbin
+MLEbins_one_year
+# woo-hoo, matches analysis-nov23-C-before-resolving-10mm.pdf for 1994
+
+```
+
+
+```{r fitallyearsfunction, cache = FALSE}
 res_all_years <- fit_all_years(raw_simp_prop,
                                strata_to_analyse = strata_to_analyse,
                                bin_width_each_year = bin_width_each_year,
@@ -283,7 +373,7 @@ haul_with_10_mm_only %>% a()
 Can see no hauls before 2000
 
 
-HERE HERE - think about the above. Looks good, and makes sense. Can keep ones
+ - think about the above. Looks good, and makes sense. Can keep ones
 that have 1 or 2 with 10-mm only, but 2001-2009 look like they indeed are the
 only years that need dealing with.
 
@@ -446,7 +536,7 @@ only_2014_C %>% a()
 sum(only_2014_C$scaled_counts)
 # = 543.49, but plot using fit_all_years adds up to about 1,000
 # copied from `fit_all_years()`
-# HERE HERE
+
 # Not as drastically wrong as 2004, but still different.
 bin_width <- 1
 counts_per_bin_2014_C <- summarise(group_by(only_2014_C,

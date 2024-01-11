@@ -603,6 +603,13 @@ filter(counts_nov23, id == "2008_C_79") %>%
 # arrange(id_set) %>% a()
 ```
 
+### And check `prop_measured` is still good
+
+```{r propmeasured}
+expect_equal(counts_nov23$prop_measured,
+             counts_nov23$number_measured / counts_nov23$total_no)
+```
+
 ## Save two wrangled data files and bin widths
 
 Best not to save them as package objects as will get confusing when not committing them.
