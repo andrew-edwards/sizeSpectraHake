@@ -433,17 +433,6 @@ expect_equal(check$diff,
 Great -- the total number measured (as recorded)
 equals the number of rows FOR THAT HAUL, even when there are two sets.
 
-
-NOT SURE NEED THIS ANY MORE TODO, ignoring for now
-```{r checknumber5}
-id_repeated_full <- filter(raw_simp_prop_nov23,
-                           id %in% id_repeated$id)
-id_repeated_full_unique <- reframe(group_by(id_repeated_full,
-                                            id,
-                                            total_no),
-                                   x = unique(x))
-id_repeated_full_unique %>% a()
-
 # summarise there gives the warning, as expected. So using reframe.
 ```
 
@@ -456,189 +445,174 @@ raw_simp_prop_nov23_sets <- left_join(raw_simp_prop_nov23,
                                              "total_no",
                                              "number_measured"))
 summary(raw_simp_prop_nov23_sets)
-# TODO need bin widths from earlier, or later
 
 # TODO check prop_measured is the correct thing - thinking it might not be now
 # as done earlier. Aha - may need to be done in ids_sets. Check earlier - think
 # it is correct for each set, and that's what we need.
 ```
 
-HERE - need to get sets appended to `raw_simp_prop_nov23` so can do the bin
-widths. Then mutate to give wmin and wmax for each row.
-
-HERE TUES NIGHT `summarise` should work if group by set also, but need to
-
-
-
 
 This was just for checking the repeated id's. Decide if still needed; think may
-have been to help figure out what I've now done above.
-```{r checknumber6, eval=FALSE}
-id_repeated_full <- filter(raw_simp_prop_nov23,
+have been to help figure out what I've now done above. And is essentially a copy
+of earlyer. Actually, think still need to work out the 10-mm issue, but doing it
+below for all `set_id`s.
+```{r checknumber6}
+id_repeated_full <- filter(raw_simp_prop_nov23_sets,
                            id %in% id_repeated$id)
 id_repeated_full_unique <- reframe(group_by(id_repeated_full,
-                                            id,
-                                            set),
+                                            id_set),
                                    x = unique(x))
 id_repeated_full_unique %>% a()
 
 # summarise there gives the warning, as expected. So using reframe.
 ```
 
-
-
 Manually looking through first 180 lines or so when printing as a data frame we
-see the expected pattern: one set in each `id` looks indeed to be 1-mm resolution, and one set is
-10-mm. Though can see that the final ones in 2023 just had two spearate
-samples with 1-mm resolution.
+see my originally expected pattern: one set in each `id` looks indeed to be 1-mm
+resolution, and one set is 10-mm. Though can see that this is not the case for
+2022 and 2023 which are all 1-mm resolution.
 
 So there are two sets for all these. Sometimes due to resolution, sometimes
 not.
 
-So clearly have to check properly, and add a
-resolution column. Could have a set A and a set B for these to also distinguish
-them, though the `total_no` does distinguish them.
+Need resolution column, but need for all `id_sets`. Copying what I did for
+unique (in chunk idsmm below), think can just do it for all in one go. Need to
+given 2022/2023 issue anyway (didn't think I had to originally).
 
-Do it here, then do for all `id`s.
-```{r idsmm}
+
+```{r idsmmnew}
 # Adapting from analysis-nov23-C.Rmd but hadn't realised the multiple rows for
 # same strata issue then. Better to deal with all this here.
 
+# For each id_set give the unique x values.
+id_sets_unique_x <- reframe(group_by(raw_simp_prop_nov23_sets,
+                                   id_set),
+                          x = unique(x))      # Will be multiple, hence reframe
+id_sets_unique_x # %>% a()
+
 # Vector of measured lengths that aren't multiples of 10 mm
 non_10_mm_measurements <-
-  unique(id_repeated_full_unique$x)[unique(id_repeated_full_unique$x) %% 10 > 0] %>%
+  unique(id_sets_unique_x$x)[unique(id_sets_unique_x$x) %% 10 > 0] %>%
   sort()
 
 non_10_mm_measurements
 
-# Actually have to do this differently to other file, since need 1mm and 10mm.
+id_sets_unique_x_non_10_mm <- mutate(id_sets_unique_x,
+                                     non_10_mm = (x %in% non_10_mm_measurements))
 
-# TODO RENAME when figured out
-id_repeated_full_unique_non_10_mm <- mutate(id_repeated_full_unique,
-                                        non_10_mm = (x %in% non_10_mm_measurements))
-                                 # non_10_mm - is this
+id_sets_unique_x_non_10_mm
 
-id_repeated_full_unique_non_10_mm
 # summarise correctly gives error with unique. So use reframe then look for
 #  ids-total_no combinations that have only non_10_mm = FALSE.
-id_total_no_resolution <- summarise(group_by(id_repeated_full_unique_non_10_mm,
-                                       id,
-                                       total_no),
-                                    "1_mm_res" = any(non_10_mm)) %>%   # at least 1 is TRUE, i.e. at least one 1-mm measurement
+id_sets_resolution <- summarise(group_by(id_sets_unique_x_non_10_mm,
+                                         id_set),
+                                "one_mm_res" = any(non_10_mm)) %>%   # at least
+                                        # 1 is TRUE, i.e. at least one 1-mm
+                                        # measurement
+  mutate(resolution = ifelse(one_mm_res, 1, 10)) %>%
   ungroup()
-id_total_no_resolution %>% a()
-```
-That says which `id` and `total_no` combinations have 1-mm resolution. Manually
-went through can see get a `TRUE` and `FALSE` for each `id` from 2001-2009, then
-2022 and 2023 there are only 1-mm resolution, but done in two sets.
 
-Hmmm.... how did `2022_C_5` end up with just one row. Maybe that has 21 as a
-repeated `total_no`. First check if any others with that.
-```{r checknumber77}
-summarise(group_by(id_total_no_resolution,
-                   id),
-          number = n()) %>%
-  filter(number < 2)
+id_sets_resolution  %>% a()
+
+# Can see from that
+filter(raw_simp_prop_nov23, id == "1994_C_120")
+
+# Another check is
+expect_equal(nrow(id_sets_resolution),
+             length(unique(raw_simp_prop_nov23_sets$id_set)))
+expect_equal(nrow(id_sets_resolution),
+             length(unique(id_sets_resolution$id_set)))  # All unique
 ```
-So only that one. Look at original data:
-```{r checknumber78}
-filter(raw_simp_nov23,
+
+Then need to `left_join` the resolution with the original raw data.
+
+```{r joinres}
+raw_simp_prop_nov23_sets_resolution <- left_join(raw_simp_prop_nov23_sets,
+                                                 id_sets_resolution,
+                                                 by = "id_set")
+
+summary(raw_simp_prop_nov23_sets_resolution)
+```
+
+Then need to do the `wmin` and `wmax` needed for MLEbins.
+
+Just looking at previously saved version that goes into analysis, to check
+formatting, though should be at the end of this current file anyway
+```{r previouslysaved}
+# raw_simp_prop_nov_23  - this was used. But going to rewrite `fit_all_years`
+# anyway, add the bin widths here
+# raw_simp_prop <- readRDS("raw_simp_prop_nov23.rds")
+
+# Think save raw_simp_prop_nov23_sets_resolution  so have full data set in
+# analysis, but also finish wrangling here to what is needed in analysis.
+raw_simp_prop_nov23_sets_resolution %>% a() %>% head(n=10)
+
+# Keep some of the headings in here for easy reference, e.g. haul_no; also a
+# further double check if summarise gives no warning
+counts_nov23 <-   summarise(group_by(raw_simp_prop_nov23_sets_resolution,
+                                     id_set,
+                                     x),
+                            year = unique(year),
+                            haul_no = unique(haul_no),
+                            strata = unique(strata),
+                            total_no = unique(total_no),
+                            number_measured = unique(number_measured),
+                            prop_measured = unique(prop_measured),
+                            resolution = unique(resolution),
+                            id = unique(id),
+                            binCount = sum(scaled_counts)) %>%
+  ungroup() %>%
+  mutate(wmin = x - resolution/2,
+         wmax = x + resolution/2) %>%
+  arrange(year,
+          strata,
+          haul_no,
+          wmin) %>%
+  relocate(year,
+           strata,
+           haul_no,
+           binCount,
+           wmin,
+           wmax,
+           id_set,
+           x,
+           total_no,
+           number_measured,
+           prop_measured,
+           id,
+           resolution)
+
+counts_nov23
+
+summary(counts_nov23)
+```
+Won't need all those columns for the analysis, just `year`, `binCounts`, `wmin`,
+`wmax`, and maybe `id_set` but don't think so as going to analyse by year.
+
+And `id`
+is still useful for checking individual hauls, such as checking `2022_C_5` which
+had the same `total_no` for sets `A` and `B`:
+```{r check2022C5}
+filter(counts_nov23,
        id == "2022_C_5") %>%
+  select(-c("year", "strata", "haul_no", "id", "resolution")) %>%
   a()
 ```
-So `total_number` was the same for two sets, but can see that `number_measured`
-wasn't (if it was then we would just see, say, `number_measured = 14` here but
-28 rows; we correctly have 34 rows, the sum of the two `number_measured`. So
-this means we should go back and group by `number_measured` also. So maybe
-should give a `set` column.
-
-
-
-
-```{r temp}
-# HERE HERE - this does not quite work:
-
-## reframe(group_by(id_repeated_full_unique_group,
-##                  id,
-##                  total_no),
-##         all_10_mm = unique(non_10_mm)
-##         )
-
-
-## Rest of copying from analysis-nov23-C.Rmd, may be useful as template
-# # ids which do not have non-10-mm measurements; i.e. only have 10 mm ones (the
-# # 1-mm ids can still have some 10-mm measurements)
-## ids_with_mm_accuracy <- filter(id_repeated_full_unique,
-##                                x %in% non_10_mm_measurements)$id %>%
-##                         unique()
-
-## raw_with_10_mm_only <- filter(raw_simp_prop_strata,
-##                               !(id %in% ids_with_mm_accuracy))
-## raw_with_10_mm_only
-
-## summary(raw_with_10_mm_only)
-
-## ids_with_10_mm_only <- unique(raw_with_10_mm_only$id)
-
-## ids_with_10_mm_only
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
----
-Gave a WARNING with `unique(number_measured)` instead of `sum()`. So the issue
-is that `number_measured` is not unique to a haul, sometimes two lots are done.
-
-NOT ACTUALLY THE sum, need to do in two steps. Current answer is actually the
-square of `number_rows`.
-So HERE HERE, next check `number_rows` is the sum of `number_measured` for each
-id, then use `sum` not `unique` either earlier or later to save data. Want to
-have one row for each `id`, and don't currently have that. OR:
-
-No - just realised that the reason there are two for some hauls might be that
-some are 1mm and some 10mm. So check that.
-
-
-
-CAN PROB DELETE THIS - maybe commit first then delete, so not completely lost.
-which I think means `number_measured` is indeed not
-unique. Should dig into to get rid of warning, though not easy. Maybe need to do
-by each year separately. Aha, `mtcars` example in `?dplyr` does give rows with
-the grouping repeated, so here I should have multiple rows with the same `id`.
-
-Aha, but they look like they add up
-
-```{r checknumber9}
-id_repeated_grouped <- summarise(group_by(id_repeated,
-                                          id),
-                                   number_measured = unique(number_measured),
-                                   number_rows = n())
-
-```
-
 
 ## Save two wrangled data files and bin widths
 
 Best not to save them as package objects as will get confusing when not committing them.
 
 ```{r savedata}
-saveRDS(raw_simp_prop_orig, "raw_simp_prop_orig.rds")
-saveRDS(raw_simp_prop_nov23, "raw_simp_prop_nov23.rds")
+saveRDS(raw_simp_prop_orig,
+        "raw_simp_prop_orig.rds")
+saveRDS(bin_width_each_year_orig,
+        "bin_width_each_year_orig.rds")
 
-saveRDS(bin_width_each_year_orig, "bin_width_each_year_orig.rds")
-saveRDS(bin_width_each_year_nov23, "bin_width_each_year_nov23.rds")
+saveRDS(raw_simp_prop_nov23_sets_resolution,
+        "raw_simp_prop_nov23_sets_resolution.rds")
+saveRDS(counts_nov23,
+        "counts_nov23")
 ```
 
 ## Some ideas to keep here for reference
