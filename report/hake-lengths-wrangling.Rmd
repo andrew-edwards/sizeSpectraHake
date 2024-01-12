@@ -449,7 +449,7 @@ summary(raw_simp_prop_nov23_sets)
 
 This was just for checking the repeated id's. Decide if still needed; think may
 have been to help figure out what I've now done above. And is essentially a copy
-of earlyer. Actually, think still need to work out the 10-mm issue, but doing it
+of earlier. Actually, think still need to work out the 10-mm issue, but doing it
 below for all `set_id`s.
 ```{r checknumber6}
 id_repeated_full <- filter(raw_simp_prop_nov23_sets,

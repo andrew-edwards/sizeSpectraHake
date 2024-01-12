@@ -114,6 +114,8 @@ counts_per_bin_per_set_id <- summarise(group_by(counts_full,
                                        number = sum(binCount),
                                        wmin = unique(wmin),
                                        wmax = unique(wmax),
+                                       id = unique(id),   # makes the 2-set
+                                         # hauls easier
                                        resolution = unique(resolution)) %>%
   filter(strata %in% strata_to_analyse) %>%
   ungroup()
@@ -135,12 +137,19 @@ counts_per_bin_one_year <- filter(counts_per_bin_per_set_id,
 id_set_with_B <- unique(counts_per_bin_one_year$id_set)[grep("_B", unique(counts_per_bin_one_year$id_set))]
 
 id_set_with_B
+id_with_B <- sub("_B", "", id_set_with_B)
+id_with_B
 
+# Just two-set hauls
 counts_per_bin_one_year_repeated_hauls <- filter(counts_per_bin_one_year,
-                                             id_set %in% c(as.factor(sub("_B",
-                                                                         "_A",
-                                                                         id_set_with_B)),
-                                                           id_set_with_B))
+                                                 id %in% id_with_B)
+# replaces this now I kept id in the tibble
+## counts_per_bin_one_year_repeated_hauls_2 <- filter(counts_per_bin_one_year,
+##                                              id_set %in% c(as.factor(sub("_B",
+##                                                                          "_A",
+##                                                                          id_set_with_B)),
+##                                                            id_set_with_B))
+
 counts_per_bin_one_year_repeated_hauls %>% a()
 
 Plan:
@@ -196,8 +205,48 @@ if(max_ind == 1){
   counts_per_bin_desc_1_mm <- counts_per_bin_1_mm[-(1:(max_ind-1)), ]
 }
 
-counts_per_bin_desc
+counts_per_bin_desc_1_mm
+xmin = min(counts_per_bin_desc_1_mm$wmin)   # xmin for size spectrum analysis
+```
 
+### Step 2
+```{r step2}
+# Step 2
+# Do for each haul with two sets
+for(i in 1:length(id_with_B)){
+  counts_per_bin_this_haul <- filter(counts_per_bin_one_year_repeated_hauls,
+                                     id == id_with_B[1])
+  # Which 10-mm bin contains xmin
+  bin_10_mm_contains_xmin <- filter(counts_per_bin_this_haul,
+                                    spec_code == 10,
+                                    wmin < xmin,
+                                    wmax > xmin)
+  if(nrow(bin_10_mm_contains_xmin) > 1){
+    stop("Should only be one 10_mm bin containing xmin")
+  }
+
+  # Step 3, get the 1-mm bins fully contained in that 10-mm bin
+  if(nrow(bin_10_mm_contains_xmin) == 1){
+    bin_1_mm_in_bin_10_mm_contains_xmin <- filter(counts_per_bin_this_haul,
+                                    spec_code == 1,
+                                    wmin > bin_10_mm_contains_xmin$wmin,
+                                    wmax < bin_10_mm_contains_xmin$wmax)
+    bin_1_mm_in_bin_10_mm_contains_xmin
+    # Step 4, ratio of counts >/< xmin
+    number_gt_xmin <- sum(filter(bin_1_mm_in_bin_10_mm_contains_xmin,
+                                 wmin >= xmin)$number)
+    number_lt_xmin <- sum(filter(bin_1_mm_in_bin_10_mm_contains_xmin,
+                                 wmax <= xmin)$number)
+    expect_equal(number_gt_xmin + number_lt_xmin,
+                 sum(bin_1_mm_in_bin_10_mm_contains_xmin$number))
+    ratio_gt_xmin_versus_lt_xmin <- number_gt_xmin / number_lt_xmin
+    # Step 5
+HERE - need to work out what to replace in the counts
+  # Else we have nrow(bin_10_mm_contains_xmin) == 0 and so don't have to deal
+  # with the 10-mm bin
+  }
+
+counts_per_bin_one_year_repeated_hauls
 
 not needed yet:
 counts_per_bin_10_mm <- filter(counts_per_bin,
@@ -246,7 +295,7 @@ HERE
 ## 10mm issue.
 
 n = sum(counts_per_bin_desc$Number)
-xmin = min(counts_per_bin_desc$wmin)
+# xmin = min(counts_per_bin_desc$wmin) # done earlier
 xmax = max(counts_per_bin_desc$wmax)
 
 MLEbins_one_year <- calcLike(negLL.fn = negLL.PLB.bins.species,
