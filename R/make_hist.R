@@ -7,8 +7,8 @@
 ##' @param counts_per_bin tibble with columns `binCount`, `binMid`, `binMin`,
 ##'   `binMax`. Had thought about simplifying down to just `binMid`, but need to
 ##'   specify the bin endpoints (as empty bins don't usually get included
-##'   here). Columns can also be just `wmin`, `wmax`, `Number` and `specCode`
-##'   (bin width) which is the format needed for MLEbins. `make_hist()` just
+##'   here). Columns can also be just `wmin`, `wmax`, `number` and `resolution`
+##'   (of the bin width) which is closer to the format needed for MLEbins. `make_hist()` just
 ##'   changes them internally to `binCount` etc., and calculates `binMid`.
 ##' @param bin_width bin width for the data set. Might not be
 ##'   `min(diff(counts_per_bin$binMid))` as that will missing `binMid` for empty
@@ -34,7 +34,7 @@ make_hist <- function(counts_per_bin,
   # Change the names here if they're the MLEbins format.
   if("wmax" %in% names(counts_per_bin)){
     counts_per_bin <- rename(counts_per_bin,
-                             binCount = Number,
+                             binCount = number,
                              binMin = wmin,
                              binMax = wmax) %>%
       mutate(binMid = (binMin + binMax)/2) # mean(c(binMin, binMax))) didn't

@@ -111,13 +111,11 @@ counts_per_bin_per_set_id <- summarise(group_by(counts_full,
                                        # because id_set distinguishes
                                        year = unique(year),
                                        strata = unique(strata),
-                                       spec_code = unique(resolution),
+                                       resolution = unique(resolution),
                                        number = sum(binCount),
                                        wmin = unique(wmin),
                                        wmax = unique(wmax),
-                                       id = unique(id),   # makes the 2-set
-                                         # hauls easier
-                                       resolution = unique(resolution)) %>%
+                                       id = unique(id)) %>% # makes the 2-set hauls easier
   filter(strata %in% strata_to_analyse) %>%
   ungroup()
 
@@ -181,27 +179,27 @@ the new bin, `xmin` to `wmax^*`,plus a count for the `wmin^*` to `xmin` bin.
 # This sums the counts in each bin.
 counts_per_bin <- summarise(group_by(counts_per_bin_per_set_id_one_year,
                                      wmin,
-                                     spec_code),
+                                     resolution),
                             number = sum(number),
                             wmax = unique(wmax)) %>%
-  arrange(spec_code,
+  arrange(resolution,
           wmin) %>%
   relocate(wmin,
            wmax,
-           Number = number,
-           specCode = spec_code) %>%
+           number,
+           resolution) %>%
   ungroup()
 counts_per_bin %>% a()
 
 # Need to separate 1mm and 10mm:
 counts_per_bin_1_mm <- filter(counts_per_bin,
-                              specCode == 1,
+                              resolution == 1,
                               wmin >= min_wmin_to_consider_1_mm - 0.001,
                               wmax <= max_wmax_to_consider_1_mm + 0.001)
 
 counts_per_bin_1_mm %>% a()
 
-max_ind <- which.max(counts_per_bin_1_mm$Number)
+max_ind <- which.max(counts_per_bin_1_mm$number)
 max_ind
 
 if(max_ind == 1){
@@ -226,7 +224,7 @@ for(i in 1:length(id_with_B)){
                                      id == id_with_B[i])
   # Which 10-mm bin contains xmin
   bin_10_mm_contains_xmin <- filter(counts_per_bin_this_haul,
-                                    spec_code == 10,
+                                    resolution == 10,
                                     wmin < xmin,
                                     wmax > xmin)
   if(nrow(bin_10_mm_contains_xmin) > 1){
@@ -236,7 +234,7 @@ for(i in 1:length(id_with_B)){
   # Step 3, get the 1-mm bins fully contained in that 10-mm bin
   if(nrow(bin_10_mm_contains_xmin) == 1){
     bin_1_mm_in_bin_10_mm_contains_xmin <- filter(counts_per_bin_this_haul,
-                                                  spec_code == 1,
+                                                  resolution == 1,
                                                   wmin > bin_10_mm_contains_xmin$wmin,
                                                   wmax < bin_10_mm_contains_xmin$wmax)
     bin_1_mm_in_bin_10_mm_contains_xmin     # Has to be at least one because
@@ -281,25 +279,25 @@ expect_equal(filter(counts_per_bin_by_haul_to_replace, number <0) %>% nrow(), 0)
 # Now sum to give just two new bins (as done above for counts_per_bin), that will replace the existing one in counts_per_bin
 counts_per_bin_to_replace <- summarise(group_by(counts_per_bin_by_haul_to_replace,
                                                 wmin,
-                                                spec_code),  # should only be 10 anyway
+                                                resolution),  # should only be 10 anyway
                                        number = sum(number),
                                        wmax = unique(wmax)) %>%
-  arrange(spec_code,
+  arrange(resolution,
           wmin) %>%
   relocate(wmin,
            wmax,
-           Number = number,
-           specCode = spec_code) %>%
+           number,
+           resolution) %>%
   ungroup()
 counts_per_bin_to_replace %>% a()
 
-# Sum of Number should match Number here, to ensure have kept the same numbers
+# Sum of number should match number here, to ensure have kept the same numbers
 orig <- filter(counts_per_bin_per_set_id_one_year,
                id %in% id_with_B,
-               spec_code == 10,
+               resolution == 10,
                wmin == 25)
 expect_equal(sum(orig$number),
-             sum(counts_per_bin_to_replace$Number))
+             sum(counts_per_bin_to_replace$number))
 
 # Have to replace the counts for those hauls only.
 ```
@@ -327,7 +325,7 @@ counts_per_bin_one_year_repeated_hauls
 
 # not needed yet:
 counts_per_bin_10_mm <- filter(counts_per_bin,
-                               specCode == 10,
+                               resolution == 10,
                                wmin >= min_wmin_to_consider_10_mm - 0.001,
                                wmax <= max_wmax_to_consider_10_mm + 0.001)
 
@@ -381,9 +379,12 @@ Not evaluating for now:
 ## don't make much difference to picking xmin. First try 2001 as that has clear
 ## 10mm issue.
 
-n = sum(counts_per_bin_desc$Number)
+n = sum(counts_per_bin_desc$number)
 # xmin = min(counts_per_bin_desc$wmin) # done earlier
 xmax = max(counts_per_bin_desc$wmax)
+
+# Need to change resolution to specCode for this. Make a function maybe.
+# And number to Number
 
 MLEbins_one_year <- calcLike(negLL.fn = negLL.PLB.bins.species,
                              p = -1.9,
