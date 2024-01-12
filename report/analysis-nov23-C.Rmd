@@ -28,7 +28,9 @@ if(!"sizeSpectraHake" %in% (.packages())){
 
 This is what should be changed for each analysis. `orig` or `nov23` and `C` or
 `all_strata`. Comment one in each pair of these first four lines. And change the
-filename and title.
+filename and title. Though probably not going to back to `orig` data, since have
+moved on considerably, and `nov23` data stream will be the one to be extended
+going forward.
 ```{r load}
 # dataset <- "orig"
 dataset <- "nov23"
@@ -66,9 +68,9 @@ min_year_to_analyse <- ifelse(strata_to_analyse == "C",
                               2001)      # data look okay but Iain had said 2004 for
                                          # all strata, so check TODO
 # TODO see if don't need that, expect min should be in data anyway once filtered
-# strata C
+# strata C. Come back to.
 
-# TODO temporary to figure out 10-mm issue
+# TODO temporary to figure out 10-mm issue. Come back to.
 # min_year_to_analyse <- 2006 #2014 #NULL  #2004
 max_year_to_analyse <- NULL #2006 #2014# NULL  # 2004
 ```
@@ -80,7 +82,6 @@ analysis (this chunk is **CACHED**):
 
 Copying cached directories as `...before-resolving-10mm` before changing code.
 
-TODO - do one year first, then change `fit_all_years` to loop over all years.
 
 
 Now do the data preparation first, maybe no need to functionalise.
@@ -130,43 +131,45 @@ Now fit one year. First tried 1994 and resulting $b$ matched MLEbin, but there
 is no 10-mm issue there. So now try 2001:
 ```{r oneyear}
 one_year = 2001
-counts_per_bin_one_year <- filter(counts_per_bin_per_set_id,
-                              year == one_year)
+counts_per_bin_per_set_id_one_year <- filter(counts_per_bin_per_set_id,
+                                  year == one_year)
 
 # from wrangling .Rmd; if has a _B then by definition is a two-set haul
-id_set_with_B <- unique(counts_per_bin_one_year$id_set)[grep("_B", unique(counts_per_bin_one_year$id_set))]
+id_set_with_B <- unique(counts_per_bin_per_set_id_one_year$id_set)[grep("_B", unique(counts_per_bin_per_set_id_one_year$id_set))]
 
 id_set_with_B
 id_with_B <- sub("_B", "", id_set_with_B)
 id_with_B
 
 # Just two-set hauls
-counts_per_bin_one_year_repeated_hauls <- filter(counts_per_bin_one_year,
+counts_per_bin_one_year_repeated_hauls <- filter(counts_per_bin_per_set_id_one_year,
                                                  id %in% id_with_B)
 # replaces this now I kept id in the tibble
-## counts_per_bin_one_year_repeated_hauls_2 <- filter(counts_per_bin_one_year,
+## counts_per_bin_one_year_repeated_hauls_2 <- filter(counts_per_bin_per_set_id_one_year,
 ##                                              id_set %in% c(as.factor(sub("_B",
 ##                                                                          "_A",
 ##                                                                          id_set_with_B)),
 ##                                                            id_set_with_B))
 
 counts_per_bin_one_year_repeated_hauls %>% a()
-
+```
 Plan:
 1. pick xmin based on all-hauls 1-mm bins as before, will end in 0.5 by definition, e.g. 30.5
 Do these for the repeated hauls only:
-2. determine which 10-mm bin contains that xmin, wmin^* to wmax^* i.e. 25-35
+2. determine which 10-mm bin contains that `xmin` call it `wmin^*` to `wmax^*` i.e. 25-35
 3. look at the 1-mm bins that are fully within that 10-mm bin, i.e. 25.5-26.5,
 26.5-27.5, ..., 33.5-34.5; there will be 9 of them.
-4. sum the counts in those bins that are >xmin and <xmin, work out the ratio of
-counts_>xmin / counts_<xmin. Doing at haul level remember.
+4. sum the counts in those bins that are `>xmin` and `<xmin`, work out the ratio of
+`counts_>xmin / counts_<xmin`. Doing at haul level remember.
 5. Multiply that ratio by the total counts in the 10-mm bin to give a count for
-the new bin.
-6. New bin's bin breaks are xmin, wmax^*.
-7. Remove 1-mm bins and 10-mm <xmin, then add the new bin.
+the new bin, `xmin` to `wmax^*`,plus a count for the `wmin^*` to `xmin` bin.
+6. New bin's bin breaks are `xmin`, `wmax^*`.
+7. Remove 1-mm bins and 10-mm `<xmin`, then add the new bin.
 
-# Think these were what I based the above code on, not sure needed.
-## id_table_repeated_index <- which(table(counts_per_bin_one_year$id) > 1)
+```{r xmin10mm}
+# Think these were what I based the above code on, not sure needed. Still useful
+# to do though.
+## id_table_repeated_index <- which(table(counts_per_bin_per_set_id_one_year$id) > 1)
 
 ## id_table_repeated_ids <-  table(create_sets_temp$id)[id_table_repeated_index]
 
@@ -176,12 +179,13 @@ the new bin.
 
 # This works, then do above steps to work out what to do with first 10-mm bin.
 # This sums the counts in each bin.
-counts_per_bin <- summarise(group_by(counts_per_bin_one_year,
+counts_per_bin <- summarise(group_by(counts_per_bin_per_set_id_one_year,
                                      wmin,
                                      spec_code),
                             number = sum(number),
-                            wmax = max(wmax)) %>%
-  arrange(wmin) %>%
+                            wmax = unique(wmax)) %>%
+  arrange(spec_code,
+          wmin) %>%
   relocate(wmin,
            wmax,
            Number = number,
@@ -211,11 +215,15 @@ xmin = min(counts_per_bin_desc_1_mm$wmin)   # xmin for size spectrum analysis
 
 ### Step 2
 ```{r step2}
-# Step 2
 # Do for each haul with two sets
+counts_per_bin_by_haul_to_replace <- tibble()    # Going to be the values we
+                                        # need to sum and put
+                                        # into counts_per_bin, replacing each
+                                        # existing wmin* to wmax* one.
 for(i in 1:length(id_with_B)){
+  # Should make this into a function TODO
   counts_per_bin_this_haul <- filter(counts_per_bin_one_year_repeated_hauls,
-                                     id == id_with_B[1])
+                                     id == id_with_B[i])
   # Which 10-mm bin contains xmin
   bin_10_mm_contains_xmin <- filter(counts_per_bin_this_haul,
                                     spec_code == 10,
@@ -228,10 +236,11 @@ for(i in 1:length(id_with_B)){
   # Step 3, get the 1-mm bins fully contained in that 10-mm bin
   if(nrow(bin_10_mm_contains_xmin) == 1){
     bin_1_mm_in_bin_10_mm_contains_xmin <- filter(counts_per_bin_this_haul,
-                                    spec_code == 1,
-                                    wmin > bin_10_mm_contains_xmin$wmin,
-                                    wmax < bin_10_mm_contains_xmin$wmax)
-    bin_1_mm_in_bin_10_mm_contains_xmin
+                                                  spec_code == 1,
+                                                  wmin > bin_10_mm_contains_xmin$wmin,
+                                                  wmax < bin_10_mm_contains_xmin$wmax)
+    bin_1_mm_in_bin_10_mm_contains_xmin     # Has to be at least one because
+                                            # xmin is a 1-mm wmin by defintion
     # Step 4, ratio of counts >/< xmin
     number_gt_xmin <- sum(filter(bin_1_mm_in_bin_10_mm_contains_xmin,
                                  wmin >= xmin)$number)
@@ -239,16 +248,84 @@ for(i in 1:length(id_with_B)){
                                  wmax <= xmin)$number)
     expect_equal(number_gt_xmin + number_lt_xmin,
                  sum(bin_1_mm_in_bin_10_mm_contains_xmin$number))
-    ratio_gt_xmin_versus_lt_xmin <- number_gt_xmin / number_lt_xmin
+    prop_gt_xmin <- number_gt_xmin / (number_lt_xmin + number_gt_xmin)
     # Step 5
-HERE - need to work out what to replace in the counts
+    # wmin* to xmin bin (won't be needed but used for double checking):
+    new_bins_for_this_haul_1 <- bin_10_mm_contains_xmin
+    new_bins_for_this_haul_1$wmax <- xmin
+    new_bins_for_this_haul_1$number <- new_bins_for_this_haul_1$number *
+      (1 - prop_gt_xmin)
+
+    # xmin to wmax* bin, that will get used in the fitting
+    new_bins_for_this_haul_2 <- bin_10_mm_contains_xmin
+    new_bins_for_this_haul_2$wmin <- xmin
+    new_bins_for_this_haul_2$number <- new_bins_for_this_haul_2$number *
+      prop_gt_xmin
+
+    # Append new values to those for previous hauls (done in earlier iterations
+    # of this loop).
+    counts_per_bin_by_haul_to_replace <- bind_rows(counts_per_bin_by_haul_to_replace,
+                                                   new_bins_for_this_haul_1,
+                                                   new_bins_for_this_haul_2)
+  }  # Ends if(nrow(bin_10_mm_contains_xmin) == 1)
+
   # Else we have nrow(bin_10_mm_contains_xmin) == 0 and so don't have to deal
-  # with the 10-mm bin
-  }
+  # with the 10-mm bin (all the 10-mm bins might be higher, for example)
+}
+
+counts_per_bin_by_haul_to_replace
+
+# Check no negatives
+expect_equal(filter(counts_per_bin_by_haul_to_replace, number <0) %>% nrow(), 0)
+
+# Now sum to give just two new bins (as done above for counts_per_bin), that will replace the existing one in counts_per_bin
+counts_per_bin_to_replace <- summarise(group_by(counts_per_bin_by_haul_to_replace,
+                                                wmin,
+                                                spec_code),  # should only be 10 anyway
+                                       number = sum(number),
+                                       wmax = unique(wmax)) %>%
+  arrange(spec_code,
+          wmin) %>%
+  relocate(wmin,
+           wmax,
+           Number = number,
+           specCode = spec_code) %>%
+  ungroup()
+counts_per_bin_to_replace %>% a()
+
+# Sum of Number should match Number here, to ensure have kept the same numbers
+orig <- filter(counts_per_bin_per_set_id_one_year,
+               id %in% id_with_B,
+               spec_code == 10,
+               wmin == 25)
+expect_equal(sum(orig$number),
+             sum(counts_per_bin_to_replace$Number))
+
+# Have to replace the counts for those hauls only.
+```
+
+BUGGER, there must be 10-mm hauls for those bins also, but with no corresponding
+1-mm measurements we can use the above trick for. Do we just use the same
+proportions? May have to. Or do the same trick based on proportions based on all
+the data (excluding the repeated ones). Maybe see how the proportions differ,
+and may have to do a sensitivity to both. TODO next functionalise the proportion
+stuff, to make it more general. Getting confusing here with so many tibbles.
+
+Check:
+```{r checksomething}
+
+filter(counts_per_bin_per_set_id_one_year,
+       !(id %in% id_with_B),
+       resolution == 10,
+       wmin == 25)
+
+
+
+# need this at some point I think
 
 counts_per_bin_one_year_repeated_hauls
 
-not needed yet:
+# not needed yet:
 counts_per_bin_10_mm <- filter(counts_per_bin,
                                specCode == 10,
                                wmin >= min_wmin_to_consider_10_mm - 0.001,
@@ -274,8 +351,18 @@ plot(make_hist_1_mm,
 plot(make_hist_10_mm,
      main = one_year,
      xlim = xlim_hist)
+```
 
-HERE
+Stopping here
+```{r stopping}
+knitr::knit_exit()
+```
+
+
+
+Not evaluating for now:
+```{r fits, eval=FALSE}
+
 
 
 # TODO - need this when looping over years
@@ -286,7 +373,7 @@ HERE
 ##                                 # input into function
 
 ## HERE HERE HERE - have to deal with the 1mm and 10mm bins. Aha - need to use
-## MLEbins and see vignette. But 1994 has none of those, summary(counts_per_bin_one_year)
+## MLEbins and see vignette. But 1994 has none of those, summary(counts_per_bin_per_set_id_one_year)
 ## and correctly gave the same answer as MLEbin. So then make loop to go over years here, then
 ## maybe make a function (might not be worth it, easier here to dig into
 ## things), then have to figure out hist figure - first just use 1-mm bins for
@@ -309,11 +396,10 @@ MLEbins_one_year <- calcLike(negLL.fn = negLL.PLB.bins.species,
                                         # forever, and that was for MLEbin
 MLEbins_one_year
 # woo-hoo, matches analysis-nov23-C-before-resolving-10mm.pdf for 1994
-
 ```
 
 
-```{r fitallyearsfunction, cache = FALSE}
+```{r fitallyearsfunction, cache = FALSE, eval = FALSE}
 res_all_years <- fit_all_years(raw_simp_prop,
                                strata_to_analyse = strata_to_analyse,
                                bin_width_each_year = bin_width_each_year,
@@ -329,7 +415,8 @@ MLEbin_res_all_years <- MLEbin_results_extract(res_all_years)  # tibble of
 
 \clearpage
 
-```{r, plotall, fig.pos = 'p', fig.height = 6.9, echo=FALSE}
+Not evaluating:
+```{r, plotall, fig.pos = 'p', fig.height = 6.9, echo=FALSE, eval=FALSE}
 plot(res_all_years)
 #     par.cex = 0.8,)    # For ISD plot
 ```
@@ -433,12 +520,6 @@ filter(raw_simp_prop, id == "2004_C_36")
 ```
 
 So something wrong with my data wrangling somewhere. Need to hunt backwards.
-
-
-
-
-
-
 
 
 This helped me come up with the question above.
