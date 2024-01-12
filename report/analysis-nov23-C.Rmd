@@ -85,8 +85,19 @@ TODO - do one year first, then change `fit_all_years` to loop over all years.
 
 Now do the data preparation first, maybe no need to functionalise.
 ```{r dataprep}
-min_wmin_to_consider <- 27.5
-max_wmax_to_consider <- 89.5
+# Minima to cut off -- using these later when split the data into 1 mm and 10 mm
+# to plot basic histograms. Or could maybe just go with 25 as the min, keep life easy
+# - and since poorly sampled there should be fine for lower cut off. Partly avoid
+# figuring out the 25-35 mm bin issue.
+min_wmin_to_consider_1_mm <- 27.5  # 27.5 is what Iain had said; trying 25 for
+                                 # simplicity now
+min_wmin_to_consider_10_mm <- 25 # next lowest multiple of 5 that isn't a
+                                 # multiple of 10; started writign
+                                 # next_big_bin_down() but just do manually.
+max_wmax_to_consider_1_mm <- 89.5  # 89.5 is what Iain had said; trying 95 for
+                                 # simplicity now
+max_wmax_to_consider_10_mm <- 95 # next highest multiple of 5 that isn't a
+                                 # multiple of 10
 
 counts_full
 
@@ -102,20 +113,61 @@ counts_per_bin_per_set_id <- summarise(group_by(counts_full,
                                        spec_code = unique(resolution),
                                        number = sum(binCount),
                                        wmin = unique(wmin),
-                                       wmax = unique(wmax)) %>%
-  filter(strata %in% strata_to_analyse,
-         wmin >= min_wmin_to_consider) %>%
+                                       wmax = unique(wmax),
+                                       resolution = unique(resolution)) %>%
+  filter(strata %in% strata_to_analyse) %>%
   ungroup()
 
 counts_per_bin_per_set_id
 summary(counts_per_bin_per_set_id)
 ```
 
-Now fit one year, say 1994:
-```{r oneyearfit}
-counts_per_bin_year <- filter(counts_per_bin_per_set_id,
-                              year == 1994)
-counts_per_bin <- summarise(group_by(counts_per_bin_year,
+### Can we split up first 10-mm bin based on the first overlapping 10-mm bins?
+
+Now fit one year. First tried 1994 and resulting $b$ matched MLEbin, but there
+is no 10-mm issue there. So now try 2001:
+```{r oneyear}
+one_year = 2001
+counts_per_bin_one_year <- filter(counts_per_bin_per_set_id,
+                              year == one_year)
+
+# from wrangling .Rmd; if has a _B then by definition is a two-set haul
+id_set_with_B <- unique(counts_per_bin_one_year$id_set)[grep("_B", unique(counts_per_bin_one_year$id_set))]
+
+id_set_with_B
+
+counts_per_bin_one_year_repeated_hauls <- filter(counts_per_bin_one_year,
+                                             id_set %in% c(as.factor(sub("_B",
+                                                                         "_A",
+                                                                         id_set_with_B)),
+                                                           id_set_with_B))
+counts_per_bin_one_year_repeated_hauls %>% a()
+
+Plan:
+1. pick xmin based on all-hauls 1-mm bins as before, will end in 0.5 by definition, e.g. 30.5
+Do these for the repeated hauls only:
+2. determine which 10-mm bin contains that xmin, wmin^* to wmax^* i.e. 25-35
+3. look at the 1-mm bins that are fully within that 10-mm bin, i.e. 25.5-26.5,
+26.5-27.5, ..., 33.5-34.5; there will be 9 of them.
+4. sum the counts in those bins that are >xmin and <xmin, work out the ratio of
+counts_>xmin / counts_<xmin. Doing at haul level remember.
+5. Multiply that ratio by the total counts in the 10-mm bin to give a count for
+the new bin.
+6. New bin's bin breaks are xmin, wmax^*.
+7. Remove 1-mm bins and 10-mm <xmin, then add the new bin.
+
+# Think these were what I based the above code on, not sure needed.
+## id_table_repeated_index <- which(table(counts_per_bin_one_year$id) > 1)
+
+## id_table_repeated_ids <-  table(create_sets_temp$id)[id_table_repeated_index]
+
+## id_repeated <- filter(create_sets_temp,
+##                       id %in% names(id_table_repeated_ids))
+## id_repeated %>% a()
+
+# This works, then do above steps to work out what to do with first 10-mm bin.
+# This sums the counts in each bin.
+counts_per_bin <- summarise(group_by(counts_per_bin_one_year,
                                      wmin,
                                      spec_code),
                             number = sum(number),
@@ -128,15 +180,54 @@ counts_per_bin <- summarise(group_by(counts_per_bin_year,
   ungroup()
 counts_per_bin %>% a()
 
-max_ind <- which.max(counts_per_bin$Number)
+# Need to separate 1mm and 10mm:
+counts_per_bin_1_mm <- filter(counts_per_bin,
+                              specCode == 1,
+                              wmin >= min_wmin_to_consider_1_mm - 0.001,
+                              wmax <= max_wmax_to_consider_1_mm + 0.001)
+
+counts_per_bin_1_mm %>% a()
+
+max_ind <- which.max(counts_per_bin_1_mm$Number)
 max_ind
 
 if(max_ind == 1){
-  counts_per_bin_desc <- counts_per_bin} else {
-  counts_per_bin_desc <- counts_per_bin[-(1:(max_ind-1)), ]
+  counts_per_bin_desc_1_mm <- counts_per_bin_1_mm} else {
+  counts_per_bin_desc_1_mm <- counts_per_bin_1_mm[-(1:(max_ind-1)), ]
 }
 
 counts_per_bin_desc
+
+
+not needed yet:
+counts_per_bin_10_mm <- filter(counts_per_bin,
+                               specCode == 10,
+                               wmin >= min_wmin_to_consider_10_mm - 0.001,
+                               wmax <= max_wmax_to_consider_10_mm + 0.001)
+
+counts_per_bin_10_mm %>% a()
+
+
+
+
+# Then can plot the histograms:
+make_hist_1_mm <- make_hist(counts_per_bin_1_mm)  # adapted function to be able
+                                        # to use  wmin, wmax etc (as for MLEbins).
+make_hist_10_mm <- make_hist(counts_per_bin_10_mm,
+                             bin_width = 10)
+
+xlim_hist <- c(min_wmin_to_consider_10_mm,
+              max_wmax_to_consider_10_mm)
+par(mfrow = c(2,1))
+plot(make_hist_1_mm,
+     main = one_year,
+     xlim = xlim_hist)
+plot(make_hist_10_mm,
+     main = one_year,
+     xlim = xlim_hist)
+
+HERE
+
 
 # TODO - need this when looping over years
 ## vecDiff_use <- ifelse(years_to_analyse[i] == 2006 &
@@ -146,12 +237,13 @@ counts_per_bin_desc
 ##                                 # input into function
 
 ## HERE HERE HERE - have to deal with the 1mm and 10mm bins. Aha - need to use
-## MLEbins and see vignette. But 1994 has none of those, summary(counts_per_bin_year)
-## But gives the right answer. So then make loop to go over years here, then
+## MLEbins and see vignette. But 1994 has none of those, summary(counts_per_bin_one_year)
+## and correctly gave the same answer as MLEbin. So then make loop to go over years here, then
 ## maybe make a function (might not be worth it, easier here to dig into
 ## things), then have to figure out hist figure - first just use 1-mm bins for
 ## it. Idea on walk was to overlay the 10-mm bins in different colour, hope they
-## don't make much difference to picking xmin.
+## don't make much difference to picking xmin. First try 2001 as that has clear
+## 10mm issue.
 
 n = sum(counts_per_bin_desc$Number)
 xmin = min(counts_per_bin_desc$wmin)
