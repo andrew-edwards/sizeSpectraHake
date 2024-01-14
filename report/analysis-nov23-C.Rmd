@@ -84,14 +84,17 @@ Copying cached directories as `...before-resolving-10mm` before changing code.
 
 
 
-Now do the data preparation first, maybe no need to functionalise.
+Now do the data preparation first, maybe no need to functionalise. TODO check
+thinking about `min_wmin_to_consider_10_mm` being 25. No other way to do it.
 ```{r dataprep}
 # Minima to cut off -- using these later when split the data into 1 mm and 10 mm
 # to plot basic histograms. Or could maybe just go with 25 as the min, keep life easy
 # - and since poorly sampled there should be fine for lower cut off. Partly avoid
 # figuring out the 25-35 mm bin issue.
-min_wmin_to_consider_1_mm <- 27.5  # 27.5 is what Iain had said; trying 25 for
-                                 # simplicity now
+min_wmin_to_consider <- 27.5
+min_wmin_to_consider_1_mm <- 25  # 27.5 is what Iain had said; trying 25 for
+                                 # simplicity now, and will want that in
+                                 # plots. Will visually check that mode is not < 27.5
 min_wmin_to_consider_10_mm <- 25 # next lowest multiple of 5 that isn't a
                                  # multiple of 10; started writign
                                  # next_big_bin_down() but just do manually.
@@ -167,7 +170,9 @@ counts_per_bin_1_mm_one_year %>% a()
 
 xmin <- determine_xmin(counts_per_bin_1_mm_one_year)
 
-# Apportion 10-mm bins based on xmin
+stopifnot("Need to think about min wmin and xmin" = xmin >= min_wmin_to_consider)
+# Apportion 10-mm bins based on xmin, note that includes all wmin for 1-mm
+# because can't just ignore the ones in [min_wmin_to_consider_1_mm, xmin].
 counts_per_bin_per_set_id_one_year_apportioned <-
   apportion_10_mm_bin_all_hauls(counts_per_bin_per_set_id_one_year,
                                 xmin)
@@ -216,40 +221,41 @@ Then need to bind them, first just check we have the same total number as we
 started with, for 10-mm bins.
 
 ```{r checknumber}
-# Sum of number should match number here, to ensure have kept the same numbers
-
-This should work when move wmin to conisder stuff earlier up
+# Sum of 'number' should match number here, to ensure have kept the same numbers
 orig <- filter(counts_per_bin_per_set_id_one_year,
                resolution == 10,
-               wmin == 25)
-expect_equal(sum(orig$number),
-             sum(counts_per_bin_10_mm_one_year_apportioned))
+               wmin >= min_wmin_to_consider_10_mm - 0.001,
+               wmax <= max_wmax_to_consider_10_mm + 0.001)
 
-# Have to replace the counts for those hauls only.
+expect_equal(sum(orig$number),
+             sum(counts_per_bin_10_mm_one_year_apportioned$number))
+
+expect_equal(sum(orig$number),
+             sum(counts_per_bin_10_mm_per_set_id_one_year_apportioned$number))
 ```
 
-BUGGER, there must be 10-mm hauls for those bins also, but with no corresponding
-1-mm measurements we can use the above trick for. Do we just use the same
-proportions? May have to. Or do the same trick based on proportions based on all
-the data (excluding the repeated ones). Maybe see how the proportions differ,
-and may have to do a sensitivity to both. TODO next functionalise the proportion
-stuff, to make it more general. Getting confusing here with so many tibbles.
+Now combine the 1-mm and 10-mm values. Do need to keep the 1-mm bins below
+`xmin` but above `min_wmin_to_consider_10_mm`, but not use them for fitting
+(have a check earlier that `xmin >= min_wmin_to_consider_1_mm`. Will figure out
+what to do if the opposite happens.
 
-Check:
+```{r combinecounts}
+counts_per_bin_one_year <- bind_rows(counts_per_bin_1_mm_one_year,
+                                     counts_per_bin_10_mm_one_year_apportioned)
+counts_per_bin_one_year %>% a()
+
+```
+
+
+
 ```{r checksomething}
-
-filter(counts_per_bin_per_set_id_one_year,
-       !(id %in% id_with_B),
-       resolution == 10,
-       wmin == 25)
-
-
-
 # Then can plot the histograms:
-make_hist_1_mm <- make_hist(counts_per_bin_1_mm)  # adapted function to be able
+make_hist_1_mm <- make_hist(counts_per_bin_1_mm_one_year)  # adapted function to be able
                                         # to use  wmin, wmax etc (as for MLEbins).
-make_hist_10_mm <- make_hist(counts_per_bin_10_mm,
-                             bin_width = 10)
+#make_hist_10_mm <- make_hist(counts_per_bin_10_mm_one_year_apportioned,
+# bin_width = 10)    # TODO adapt function to use the
+                                        # bin_width specified maybe. And get an
+                                        # error as mids are not multiples of bin_width
 
 xlim_hist <- c(min_wmin_to_consider_10_mm,
               max_wmax_to_consider_10_mm)
@@ -261,6 +267,9 @@ plot(make_hist_10_mm,
      main = one_year,
      xlim = xlim_hist)
 ```
+
+TODO that 10-mm figure ignores the apportioning, maybe just keep the plot as
+that for now.
 
 Stopping here
 ```{r stopping}
