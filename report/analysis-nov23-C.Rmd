@@ -139,32 +139,10 @@ is no 10-mm issue there. So now try 2001:
 one_year = 2001
 counts_per_bin_per_set_id_one_year <- filter(counts_per_bin_per_set_id,
                                   year == one_year)
-
-
-# Rest of this chunk is about to (next commit) going into:
-counts_per_bin_per_set_id_one_year_apportioned <-
-  apportion_10_mm_bin_all_hauls(counts_per_bin_per_set_id_one_year,
-                                xmin)
-
 ```
 
-copied list of steps to new function
-
-```{r xmin10mm}
-# Think these were what I based the above code on, not sure needed. Still useful
-# to do though.
-## id_table_repeated_index <- which(table(counts_per_bin_per_set_id_one_year$id) > 1)
-
-## id_table_repeated_ids <-  table(create_sets_temp$id)[id_table_repeated_index]
-
-## id_repeated <- filter(create_sets_temp,
-##                       id %in% names(id_table_repeated_ids))
-## id_repeated %>% a()
-
-# This works, then do the list of steps to work out what to do with first 10-mm bin.
-# This sums the counts in each bin.
-# NEEDED to work out xmin [could incorporate some into determine_xmin, though
-# still want to reuse or recalculate this later]
+Now work out `xmin` based on 1-mm bin counts.
+```{r xmincalc}
 counts_per_bin_pre_apportion_one_year <- summarise(group_by(counts_per_bin_per_set_id_one_year,
                                                    wmin,
                                                    resolution),
@@ -177,70 +155,52 @@ counts_per_bin_pre_apportion_one_year <- summarise(group_by(counts_per_bin_per_s
            number,
            resolution) %>%
   ungroup()
-counts_per_bin_pre_apportion %>% a()
-
-# counts_per_bin_old_pre_apportion <- counts_per_bin   # TODO temp while doing
-# function
 
 # When functionalise, then do if statement here and only do the apportion for
 # years with no 10-mm bins at all. TODO. For now just testing with 2001.
 
-# This is for the year
 counts_per_bin_1_mm_one_year <- filter(counts_per_bin_pre_apportion_one_year,
-                              resolution == 1,
-                              wmin >= min_wmin_to_consider_1_mm - 0.001,
-                              wmax <= max_wmax_to_consider_1_mm + 0.001)
+                                       resolution == 1,
+                                       wmin >= min_wmin_to_consider_1_mm - 0.001,
+                                       wmax <= max_wmax_to_consider_1_mm + 0.001)
 counts_per_bin_1_mm_one_year %>% a()
 
 xmin <- determine_xmin(counts_per_bin_1_mm_one_year)
 
+# Apportion 10-mm bins based on xmin
+counts_per_bin_per_set_id_one_year_apportioned <-
+  apportion_10_mm_bin_all_hauls(counts_per_bin_per_set_id_one_year,
+                                xmin)
+
 ```
 
-### New function goes here
-
 ```{r function10mmbin}
-# input will be:
-# counts_per_bin_1_mm, either from same haul if it exists, or from
-#   full year combined
-# counts_per_bin_10_mm that's to have bin containing xmin appropriately
-# apportioned; keep all the others (including lowers ones) the same
-# xmin, as calculated above (write a function for that)
 # output will be counts_per_bin_10_mm_apportioned - same as counts_per_bin_10_mm
 # but with the bin that contains xmin appropriately apportioned, to then use in
 # plots and then combine with 1-mm data to do the fitting.
 # apportion_10_mm_bin() actually goes below into the loop
 ```
 
-### Step 2
-```{r step2}
-# Do for each haul with two sets
-might not need now:
-counts_per_bin_by_haul_to_replace <- tibble()    # Going to be the values we
-                                        # need to sum and put
-                                        # into counts_per_bin, replacing each
-                                        # existing wmin* to wmax* one.
-# LOOP for id_with_B, then a loop for 10-mm sets without corresponding 1-mm bin,
-# just have to give different input into apportion_...(). Then functionalise
-# this also.
+```{r step77}
+counts_per_bin_10_mm_per_set_id_one_year_apportioned <- filter(
+  counts_per_bin_per_set_id_one_year_apportioned,
+  resolution == 10,
+  wmin >= min_wmin_to_consider_10_mm - 0.001,
+  wmax <= max_wmax_to_consider_10_mm + 0.001)
 
-call new function that loops over hauls
+counts_per_bin_10_mm_per_set_id_one_year_apportioned %>% a()
 
-then replace any 10-mm hauls that have been apportioned
-
-    # somewhereAppend new values to those for previous hauls (done in earlier iterations
-    # of this loop).
-
-counts_per_bin_by_haul_to_replace
-
-# Check no negatives
-expect_equal(filter(counts_per_bin_by_haul_to_replace, number <0) %>% nrow(), 0)
-
-# Now sum to give just two new bins (as done above for counts_per_bin_pre_apportion), that will replace the existing one in counts_per_bin_pre_apportion
-counts_per_bin_to_replace <- summarise(group_by(counts_per_bin_by_haul_to_replace,
-                                                wmin,
-                                                resolution),  # should only be 10 anyway
-                                       number = sum(number),
-                                       wmax = unique(wmax)) %>%
+# Now sum to give just the new bins (as done above for
+# counts_per_bin_pre_apportion), that will replace the existing one in
+# counts_per_bin_pre_apportion; though easier just to bind with
+#  counts_per_bin_1_mm_one_year
+counts_per_bin_10_mm_one_year_apportioned <- summarise(
+  group_by(
+    counts_per_bin_10_mm_per_set_id_one_year_apportioned,
+    wmin,
+    resolution),  # should only be 10 anyway, but keep as a check
+  number = sum(number),
+  wmax = unique(wmax)) %>%
   arrange(resolution,
           wmin) %>%
   relocate(wmin,
@@ -248,15 +208,22 @@ counts_per_bin_to_replace <- summarise(group_by(counts_per_bin_by_haul_to_replac
            number,
            resolution) %>%
   ungroup()
-counts_per_bin_to_replace %>% a()
 
+counts_per_bin_10_mm_one_year_apportioned %>% a()
+```
+
+Then need to bind them, first just check we have the same total number as we
+started with, for 10-mm bins.
+
+```{r checknumber}
 # Sum of number should match number here, to ensure have kept the same numbers
+
+This should work when move wmin to conisder stuff earlier up
 orig <- filter(counts_per_bin_per_set_id_one_year,
-               id %in% id_with_B,
                resolution == 10,
                wmin == 25)
 expect_equal(sum(orig$number),
-             sum(counts_per_bin_to_replace$number))
+             sum(counts_per_bin_10_mm_one_year_apportioned))
 
 # Have to replace the counts for those hauls only.
 ```
@@ -275,21 +242,6 @@ filter(counts_per_bin_per_set_id_one_year,
        !(id %in% id_with_B),
        resolution == 10,
        wmin == 25)
-
-
-
-# need this at some point I think. haven't edited after doing new function
-
-counts_per_bin_one_year_repeated_hauls
-
-# not needed yet:
-counts_per_bin_10_mm <- filter(counts_per_bin_pre_apportion,
-                               resolution == 10,
-                               wmin >= min_wmin_to_consider_10_mm - 0.001,
-                               wmax <= max_wmax_to_consider_10_mm + 0.001)
-
-counts_per_bin_10_mm %>% a()
-
 
 
 

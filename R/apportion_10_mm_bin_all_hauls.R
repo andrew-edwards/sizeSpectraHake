@@ -3,7 +3,25 @@
 ##' Determine and loop through all hauls with 10-mm bin data, calling
 ##'  `apportion_10_mm_bin()`
 ##'  for each haul. The input for the 1-mm bins depends on whether that haul
-##'  also has 1-mm data or not. If not then use the full data (assumed to be at the year level).
+##'  also has 1-mm data or not. If not then use the full data (assumed to be at
+##'  the year level).
+##'
+##' Methods for overall idea, more than what is just done in this function
+##' though. But will need this for writing up.
+##' Plan:
+##' 1. pick xmin based on all-hauls 1-mm bins as before, will end in 0.5 by definition, e.g. 30.5
+##' Do these for the repeated hauls only:
+##' 2. determine which 10-mm bin contains that `xmin` call it `wmin^*` to `wmax^*` i.e. 25-35
+##' 3. look at the 1-mm bins that are fully within that 10-mm bin, i.e. 25.5-26.5,
+##' 26.5-27.5, ..., 33.5-34.5; there will be 9 of them.
+##' 4. sum the counts in those bins that are `>xmin` and `<xmin`, work out the ratio of
+##' `counts_>xmin / counts_<xmin`. Doing at haul level remember.
+##' 5. Multiply that ratio by the total counts in the 10-mm bin to give a count for
+##' the new bin, `xmin` to `wmax^*`,plus a count for the `wmin^*` to `xmin` bin.
+##' 6. New bin's bin breaks are `xmin`, `wmax^*`.
+##' 7. Remove 1-mm bins and 10-mm `<xmin`, then add the new bin.
+##' 8. Could test sensitivity to using repeated hauls (1 and 10 mm) for those
+##' with only 10mm for apportioning, instead of using the full year's value.
 ##'
 ##' @param counts_per_bin_per_set_id_one_year tibble for just one year
 ##' @param xmin min `x` that we will fit the ISD over; needed here for partitioning
