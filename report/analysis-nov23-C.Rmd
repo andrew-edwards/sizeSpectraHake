@@ -175,7 +175,7 @@ copied list of steps to new function
 
 # This works, then do the list of steps to work out what to do with first 10-mm bin.
 # This sums the counts in each bin.
-counts_per_bin_pre_apportion <- summarise(group_by(counts_per_bin_per_set_id_one_year,
+counts_per_bin_pre_apportion_one_year <- summarise(group_by(counts_per_bin_per_set_id_one_year,
                                                    wmin,
                                                    resolution),
                                           number = sum(number),
@@ -195,13 +195,14 @@ counts_per_bin_pre_apportion %>% a()
 # When functionalise, then do if statement here and only do the apportion for
 # years with no 10-mm bins at all. TODO. For now just testing with 2001.
 
-counts_per_bin_1_mm <- filter(counts_per_bin_pre_apportion,
+# This is for the year
+counts_per_bin_1_mm_one_year <- filter(counts_per_bin_pre_apportion_one_year,
                               resolution == 1,
                               wmin >= min_wmin_to_consider_1_mm - 0.001,
                               wmax <= max_wmax_to_consider_1_mm + 0.001)
-counts_per_bin_1_mm %>% a()
+counts_per_bin_1_mm_one_year %>% a()
 
-xmin <- determine_xmin(counts_per_bin_1_mm)
+xmin <- determine_xmin(counts_per_bin_1_mm_one_year)
 ```
 
 ### New function goes here
@@ -235,57 +236,26 @@ for(i in 1:length(id_with_B)){
   counts_per_bin_this_haul <- filter(counts_per_bin_one_year_repeated_hauls,
                                      id == id_with_B[i])
 
-apportion_10_mm_bin
 
+# TODO For now just getting working for id_with_B, can put the options into a
+# larger function. So we have 10-mm counts for same id. So write a wrapper that
+# does these inputs depending on whether 10-mm exists. TODO. For now just
+# getting it working.
 
-  # Which 10-mm bin contains xmin
-  bin_10_mm_contains_xmin <- filter(counts_per_bin_this_haul,
-                                    resolution == 10,
-                                    wmin < xmin,
-                                    wmax > xmin)
-  if(nrow(bin_10_mm_contains_xmin) > 1){
-    stop("Should only be one 10_mm bin containing xmin")
-  }
+# TODO Will want to use counts_per_bin_1_mm_one_year for the sets without 10-mm bins.
 
-  # Step 3, get the 1-mm bins fully contained in that 10-mm bin
-  if(nrow(bin_10_mm_contains_xmin) == 1){
-    bin_1_mm_in_bin_10_mm_contains_xmin <- filter(counts_per_bin_this_haul,
-                                                  resolution == 1,
-                                                  wmin > bin_10_mm_contains_xmin$wmin,
-                                                  wmax < bin_10_mm_contains_xmin$wmax)
-    bin_1_mm_in_bin_10_mm_contains_xmin     # Has to be at least one because
-                                            # xmin is a 1-mm wmin by defintion
-    # Step 4, ratio of counts >/< xmin
-    number_gt_xmin <- sum(filter(bin_1_mm_in_bin_10_mm_contains_xmin,
-                                 wmin >= xmin)$number)
-    number_lt_xmin <- sum(filter(bin_1_mm_in_bin_10_mm_contains_xmin,
-                                 wmax <= xmin)$number)
-    expect_equal(number_gt_xmin + number_lt_xmin,
-                 sum(bin_1_mm_in_bin_10_mm_contains_xmin$number))
-    prop_gt_xmin <- number_gt_xmin / (number_lt_xmin + number_gt_xmin)
-    # Step 5
-    # wmin* to xmin bin (won't be needed but used for double checking):
-    new_bins_for_this_haul_1 <- bin_10_mm_contains_xmin
-    new_bins_for_this_haul_1$wmax <- xmin
-    new_bins_for_this_haul_1$number <- new_bins_for_this_haul_1$number *
-      (1 - prop_gt_xmin)
+  # Get the 10-mm apportioned calculation for this haul
+  counts_per_10_mm_bin_this_haul_apportioned <-
+    apportion_10_mm_bin(counts_per_bin_this_haul %>% filter(resolution == 1),
+                        counts_per_bin_this_haul %>% filter(resolution == 10),
+                        xmin = xmin)
 
-    # xmin to wmax* bin, that will get used in the fitting
-    new_bins_for_this_haul_2 <- bin_10_mm_contains_xmin
-    new_bins_for_this_haul_2$wmin <- xmin
-    new_bins_for_this_haul_2$number <- new_bins_for_this_haul_2$number *
-      prop_gt_xmin
-
-    # Append new values to those for previous hauls (done in earlier iterations
-    # of this loop).
-    counts_per_bin_by_haul_to_replace <- bind_rows(counts_per_bin_by_haul_to_replace,
-                                                   new_bins_for_this_haul_1,
-                                                   new_bins_for_this_haul_2)
-  }  # Ends if(nrow(bin_10_mm_contains_xmin) == 1)
-
-  # Else we have nrow(bin_10_mm_contains_xmin) == 0 and so don't have to deal
-  # with the 10-mm bin (all the 10-mm bins might be higher, for example)
 }
+
+then replace any 10-mm hauls that have been apportioned
+
+    # somewhereAppend new values to those for previous hauls (done in earlier iterations
+    # of this loop).
 
 counts_per_bin_by_haul_to_replace
 
