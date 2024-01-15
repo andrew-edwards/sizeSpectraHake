@@ -280,19 +280,9 @@ plot(make_hist_10_mm_unapportioned,
      xlim = xlim_hist)
 ```
 
+## Fitting the ISD
 
-Stopping here
-```{r stopping}
-knitr::knit_exit()
-```
-
-
-
-Not evaluating for now:
-```{r fits, eval=FALSE}
-
-
-
+```{r fits}
 # TODO - need this when looping over years
 ## vecDiff_use <- ifelse(years_to_analyse[i] == 2006 &
 ##                       strata_to_analyse == "C",
@@ -300,7 +290,7 @@ Not evaluating for now:
 ##                       15)   # TODO add dataset == "nov23"  also, need to
 ##                                 # input into function
 
-## HERE HERE HERE - have to deal with the 1mm and 10mm bins. Aha - need to use
+## Need to use
 ## MLEbins and see vignette. But 1994 has none of those, summary(counts_per_bin_per_set_id_one_year)
 ## and correctly gave the same answer as MLEbin. So then make loop to go over years here, then
 ## maybe make a function (might not be worth it, easier here to dig into
@@ -309,24 +299,56 @@ Not evaluating for now:
 ## don't make much difference to picking xmin. First try 2001 as that has clear
 ## 10mm issue.
 
-n = sum(counts_per_bin_desc$number)
+counts_per_bin_one_year_desc <- filter(counts_per_bin_one_year,
+                                       wmin >= xmin)
+
+n = sum(counts_per_bin_one_year_desc$number)
 # xmin = min(counts_per_bin_desc$wmin) # done earlier
-xmax = max(counts_per_bin_desc$wmax)
+xmax = max(counts_per_bin_one_year_desc$wmax)
 
 # Need to change resolution to specCode for this. Make a function maybe.
 # And number to Number
 
+counts_per_bin_one_year_desc_rename <- counts_per_bin_one_year_desc %>%
+  rename(Number = number,
+         specCode = resolution)
+
 MLEbins_one_year <- calcLike(negLL.fn = negLL.PLB.bins.species,
                              p = -1.9,
                              suppress.warnings = FALSE,
-                             dataBinForLike = counts_per_bin_desc,
+                             dataBinForLike = counts_per_bin_one_year_desc_rename,
                              n = n,
                              xmin = xmin,
                              xmax = xmax,
                              vecDiff = 1)   # had 15 in vecDiff_use but taking
                                         # forever, and that was for MLEbin
 MLEbins_one_year
-# woo-hoo, matches analysis-nov23-C-before-resolving-10mm.pdf for 1994
+# 1994: woo-hoo, matches analysis-nov23-C-before-resolving-10mm.pdf
+# 2001: MLEbins here gives b=-6.71, MLEbin gave -6.79. Wow, tiny change. Prob
+# wider confidence intervals here I expect.
+# 2008 should have bigger difference
+```
+
+HERE HERE HERE -- need to write a function to get the cumulative counts worked
+out, it's kind of buried in `ISD_bin_plot_nonoverlapping()` but I need to use
+`ISD_bin_plot()` for which I did it in the vignette.
+
+Single plot (adapting from `plot.hake_spectra_results()` but should parse that
+out into individual functions probably.
+```{r plotoneyear}
+counts_per_bin_one_year_desc_rename_2  <- counts_per_bin_one_year_desc_rename %>%
+                 rename(binCount = Number) # Not enough, need >= counts etc.
+sizeSpectra::ISD_bin_plot(
+               binValsTibble = counts_per_bin_one_year_desc_rename_2,
+               b.MLE = MLEbins_one_year$b_l,
+               b.confMin = MLEbins_one_year$conf[1],
+               b.confMax = MLEbins_one_year$conf[2],
+               yBig.inc = 10000,
+               xLab = "Body length (x), mm",
+               year = one_year)
+               # xlim = xlim_global,
+
+
 ```
 
 
@@ -346,6 +368,7 @@ MLEbin_res_all_years <- MLEbin_results_extract(res_all_years)  # tibble of
 
 \clearpage
 
+NOT LOOKING AT HERE ONWARDS
 Not evaluating:
 ```{r, plotall, fig.pos = 'p', fig.height = 6.9, echo=FALSE, eval=FALSE}
 plot(res_all_years)
