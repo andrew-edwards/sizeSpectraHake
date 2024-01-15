@@ -336,19 +336,34 @@ out, it's kind of buried in `ISD_bin_plot_nonoverlapping()` but I need to use
 Single plot (adapting from `plot.hake_spectra_results()` but should parse that
 out into individual functions probably.
 ```{r plotoneyear}
-counts_per_bin_one_year_desc_rename_2  <- counts_per_bin_one_year_desc_rename %>%
-                 rename(binCount = Number) # Not enough, need >= counts etc.
+
+
+
+#xlim.global = c(min(dataRecommend.isd$wmin),
+#                max(dataRecommend.isd$wmax))   # x-axis limits to be common for
+                                               # all plots
+counts_per_bin_one_year_desc_rename_2  <-
+  convert_for_ISD_bin_plot(counts_per_bin_one_year_desc_rename)
+
+# See if reorder by specCode (resolution) helps for plotting to get 10-mm behind
+# 1-mm, didn't help:
+# counts_per_bin_one_year_desc_rename_2 <-
+#   arrange(counts_per_bin_one_year_desc_rename_2,
+#           specCode)
+
 sizeSpectra::ISD_bin_plot(
-               binValsTibble = counts_per_bin_one_year_desc_rename_2,
-               b.MLE = MLEbins_one_year$b_l,
+               counts_per_bin_one_year_desc_rename_2,
+               b.MLE = MLEbins_one_year$MLE,
                b.confMin = MLEbins_one_year$conf[1],
                b.confMax = MLEbins_one_year$conf[2],
                yBig.inc = 10000,
                xLab = "Body length (x), mm",
                year = one_year)
                # xlim = xlim_global,
+```
 
-
+```{r exit}
+knitr::knit_exit()
 ```
 
 
@@ -426,7 +441,7 @@ sum(raw_2004$scaled_counts)
 
 So redo analysis for 2004, excluding the 10-mm only hauls.
 
-```{r fitallyears2004excl}
+```{r fitallyears2004excl, eval=FALSE}
 raw_simp_prop_2004_excl <- filter(raw_simp_prop,
                                   id %in% ids_with_mm_accuracy_2014)
 
