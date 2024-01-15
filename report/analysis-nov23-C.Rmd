@@ -246,15 +246,27 @@ counts_per_bin_one_year %>% a()
 
 ```
 
-
+For 10-mm, use the unapportioned values for plotting basic histograms, since
+have to adapt `make_hist()` and plotting to use the apportioned one. MLEbins
+plot will use apportioned, so don't want to spend a lot of time on the fix
+now. TODO at somepoint.
 
 ```{r checksomething}
+counts_per_bin_10_mm_one_year_unapportioned <- filter(counts_per_bin_pre_apportion_one_year,
+                                       resolution == 10,
+                                       wmin >= min_wmin_to_consider_10_mm - 0.001,
+                                       wmax <= max_wmax_to_consider_10_mm + 0.001)
+counts_per_bin_10_mm_one_year_unapportioned %>% a()
+
+
 # Then can plot the histograms:
 make_hist_1_mm <- make_hist(counts_per_bin_1_mm_one_year)  # adapted function to be able
                                         # to use  wmin, wmax etc (as for MLEbins).
-#make_hist_10_mm <- make_hist(counts_per_bin_10_mm_one_year_apportioned,
-# bin_width = 10)    # TODO adapt function to use the
-                                        # bin_width specified maybe. And get an
+make_hist_10_mm_unapportioned <- make_hist(counts_per_bin_10_mm_one_year_unapportioned,
+                                           bin_width = 10)    # TODO adapt
+                                             # function to use the
+                                        # bin_width specified maybe, and the
+                                        # apportioned values. Get an
                                         # error as mids are not multiples of bin_width
 
 xlim_hist <- c(min_wmin_to_consider_10_mm,
@@ -263,13 +275,11 @@ par(mfrow = c(2,1))
 plot(make_hist_1_mm,
      main = one_year,
      xlim = xlim_hist)
-plot(make_hist_10_mm,
+plot(make_hist_10_mm_unapportioned,
      main = one_year,
      xlim = xlim_hist)
 ```
 
-TODO that 10-mm figure ignores the apportioning, maybe just keep the plot as
-that for now.
 
 Stopping here
 ```{r stopping}

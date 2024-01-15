@@ -88,10 +88,11 @@ apportion_10_mm_bin <- function(counts_per_bin_1_mm,
       prop_gt_xmin
 
     # Check the sum of new bins equal the old bin that's about to be replaced
-    stopifnot(new_bins_for_this_haul_1$number +
-              new_bins_for_this_haul_2$number ==
-              filter(counts_per_bin_10_mm,
-                     wmin == bin_10_mm_contains_xmin$wmin)$number)
+    expect_equal(new_bins_for_this_haul_1$number +
+                 new_bins_for_this_haul_2$number,
+
+                 filter(counts_per_bin_10_mm,
+                        wmin == bin_10_mm_contains_xmin$wmin)$number)
 
     # Remove the old bin that is getting apportioned with the new two bins
     counts_per_bin_10_mm_this_haul_apportioned <- counts_per_bin_10_mm %>%
