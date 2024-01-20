@@ -139,7 +139,7 @@ summary(counts_per_bin_per_set_id)
 Now fit one year. First tried 1994 and resulting $b$ matched MLEbin, but there
 is no 10-mm issue there. So now try 2001:
 ```{r oneyear}
-one_year = 2001
+one_year = 2003  # 2003 doesn't work. 2001 and 2002 did.
 counts_per_bin_per_set_id_one_year <- filter(counts_per_bin_per_set_id,
                                   year == one_year)
 ```

@@ -1,0 +1,670 @@
+---
+title: "Analyses of hake lengths using size spectra approach -- data wrangling of original and updated Nov 2023 data"
+author: "Andrew Edwards"
+output: pdf_document
+fontsize: 12pt
+date: "Last compiled on `r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "",
+  fig.width = 10,
+  fig.height = 8
+)
+```
+
+```{r, packages}
+library(dplyr)
+library(sizeSpectra)    # Probably need latest version
+library(pacea)
+load_all()   # Just need a()
+```
+
+Data from the NOAA SWFSC Rockfish Recruitment and Ecosystem Assessment Survey
+(RREAS). Original file from Iain and Hayden (originally from John Field), November 2023 version directly from
+John Field.
+
+This is `hake-lengths-wrangling-2.Rmd` as now need also SURVEY OR CRUISE, which
+I hadn't realised for Nov 23 data (original data set did not have a mix of
+surveys), and that's a bit of a major change.
+
+Not updating original data set analysis, here just Nov 23.
+
+Load in the original data set (saving objects as "...orig") and November 2023
+version (saving objects as "...nov23") sent by John
+Field. Wrangle them both the same way, then load into `analysis-orig-C.Rmd`
+etc. files to do the same analyses on each.
+
+Given that plotting results highlights issues with the data (such as some being
+to nearest 10 mm not 1 mm -- see notes from John), may end up saving
+various versions of the data and come back here to do additional wrangling.
+
+Looking at `cpue-length_hake-hayden....csv` from
+Iain (15th May 2023). Don't think have looked at `hake_lenclasses_cpue.csv` as downloaded from Google Drive owned by Ed
+Weber, 10th May 2023.
+
+
+## Load in original raw data
+
+Original from La Jolla trip:
+
+```{r loadsetdata}
+raw_orig <- readr::read_csv("../../size-spectra-applications/calcofi-hake/hake-lengths/cpue-length_hake-hayden's weight file with all fish in an annual super tow.csv") %>%
+  dplyr::mutate_if(is.character, factor)
+
+raw_orig
+
+summary(raw_orig)
+```
+
+`CPUE_YOY` -- the CPUE of young-of-year hake caught in that haul. The rows
+for that haul are only the fish that were measured (sampled), each having a
+length of `STD_LENGTH`.
+
+`WEIGHT` -- not using, think it just the length-weight relationship applied to
+each `STD_LENGTH`.
+
+## Load in updated nov23 raw data
+
+Updated data (including 2022 and 2023) from John Field. Different format so want
+to compare results with original data.
+
+```{r loadnov23}
+raw_nov23 <-
+  readr::read_csv("../../size-spectra-applications/calcofi-hake/hake-lengths/rreas-to-2023/hake83to2023lengths.csv") %>%
+  dplyr::mutate_if(is.character, factor)
+
+raw_nov23
+
+summary(raw_nov23)
+```
+
+Each row is a fish (given a `SP_NO`, specimen).
+
+## Define bin widths for each year
+
+Jump to ``New data set'' section -- don't need annual bin widths any more.
+
+Define bin widths for each year. Original data had 0.01 mm for 2021, which, as
+John explained, is a bit preliminary and they then save it to 1 mm anyway; so
+nov23 data, and presumably onwards, is all to 1mm. so had to make a tibble
+encompassing all years of data for original data:
+```{r binwidth}
+bin_width_each_year_orig <-
+  tibble::tibble(year = min(raw_orig$YEAR):max(raw_orig$YEAR)) %>%
+  mutate(bin_width = ifelse(year %in% c(2021),
+                            0.01,
+                            1))
+
+bin_width_each_year_nov23 <-
+  tibble::tibble(year = min(raw_nov23$YEAR):max(raw_nov23$YEAR)) %>%
+  mutate(bin_width = 1)
+```
+
+## Validate understanding of data structure
+
+First validate some assumptions to check I understand the data. Just do 2004
+original data first then all years.
+```{r, validate_2004}
+raw_2004_orig <- filter(raw_orig,
+                   YEAR == 2004)
+
+raw_2004_orig
+
+stopifnot(length(unique(raw_2004_orig$CRUISE)) == 1)   # One CRUISE per year
+
+# Check each year-station combination has the same HAUL_NO and CPUE_YOY:
+# Both of these return a warning (I'd prefer an error) about returning more than
+# one line per group. So HAUL_NO and CPUE_YOY not unique per year-station
+# combination. Hayden used YEAR, STRATA, HAUL_NO so try that after.
+raw_2004_summ_a_orig <- summarise(group_by(raw_2004_orig,
+                                           YEAR,
+                                           STATION),
+                                  haul_no = unique(HAUL_NO))#,
+
+raw_2004_summ_a_orig
+
+raw_2004_summ_b_orig <- summarise(group_by(raw_2004_orig,
+                                           YEAR,
+                                           HAUL_NO),
+                                  cpue_yoy = unique(CPUE_YOY))  # No error but
+        # message only mentions grouped by YEAR, not HAUL_NO also. Same above also.
+raw_2004_summ_b_orig
+# Yet:
+length(unique(raw_2004_summ_b_orig$HAUL_NO))   # also has 92 rows. So seems okay,
+                                        # message was curious.
+
+# So seems like multiple hauls at a station, but each HAUL_NO does indeed have a
+# unique CPUE_YOY.
+
+# Each SP_NO is unique, a code for each specimen (individual fish)
+expect_equal(nrow(raw_2004_orig),
+             length(unique(raw_2004_orig$SP_NO)))
+```
+
+That makes more sense. Repeat the essential from above for all data, grouped by year:
+
+```{r validate_all}
+# Doing year-by-year to see when errors (with a warning). Okay: 2004, 2005, ..., 2014, 2017,
+#  2018, 2020, 2021
+# Not okay: 2015, 2016, 2019
+raw_summ_orig <- summarise(group_by(filter(raw_orig,
+                                      YEAR == 2015),
+                               YEAR,
+                               HAUL_NO),
+                      cpue_yoy = unique(CPUE_YOY))
+
+raw_summ_orig
+
+# So 2015 does not have a unique CPUE_YOY for each HAUL_NO. Aha - check STRATA
+# as well (Hayden used in his unique ID for each haul:
+
+# These work for 2015, 2016, 2019.
+raw_XXXX_summ_orig <- summarise(group_by(filter(raw_orig,
+                                                YEAR == 2019),
+                                         YEAR,
+                                         HAUL_NO,
+                                         STRATA),  # Don't get why not grouped by
+                                        # STRATA also
+                                cpue_yoy = unique(CPUE_YOY))
+```
+So each `YEAR-HAUL_NO-STRATA` combination correctly has a unique `CPUE_YOY`;
+hence Hayden used that to assign a `UniqueID`
+
+Check `CPUE_YOY` are all integers (think they are because of one-hour tows; TODO
+check, read papers):
+```{r, validatesp}
+expect_equal(sort(unique(raw_orig$CPUE_YOY)) %>%
+             diff() %>%
+             min(),
+             1)
+
+```
+
+Not going to use OR or WA so just keep the others.
+```{r stratakeep}
+strata_to_keep <- c("C", "NC", "S", "SC", "N")
+```
+
+## Simplify original data set
+
+```{r, simplify}
+raw_simp_orig <- filter(raw_orig,
+                   STD_LENGTH >= 28,   # TODO check with Iain, he said 28 onwards
+                                       # was > 27 but isn't actually as 0.01mm
+                                       # resolution. Think okay now as nov23 has
+                                       # 1 mm. Of course will get xmin=27.5.
+                   STD_LENGTH < 90,
+                   STRATA %in% strata_to_keep) %>%
+  select(year = YEAR,
+         haul_no = HAUL_NO,
+         strata = STRATA,
+         x = STD_LENGTH,
+         cpue_yoy = CPUE_YOY) %>%
+  mutate(id = paste(year,       # Hayden's id, to make calcs easier
+                    strata,     # than grouping, and to more easily compare any results.
+                    haul_no,
+                    sep = "_"),
+         haul_no = as.factor(haul_no),
+         id = as.factor(id)
+         ) %>%
+  arrange(year,
+          strata,
+          haul_no)
+
+raw_simp_orig
+
+# One row for each haul:
+raw_simp_totals_orig <- raw_simp_orig %>%
+  group_by(id) %>%
+  summarise(measured_in_haul = n())
+hist(raw_simp_totals_orig$measured_in_haul, breaks = 40)
+# Shows don't have enough data to fit at the haul level - kind of, have to check
+# final 'counts' TODO down below, maybe.
+
+# Calculate proportion of cpue_yoy that were measured, kind of assuming
+#  cpue_yoy is an absolute count of fish, which it seems to be as it's always
+#  integer. If effort is always the same for every tow, then maybe an effort of
+#  1 is just a standard tow, hence there's no scaling (and hence cpue is an
+#  integer; think it's one-hour tow). TODO read papers.
+
+# Then scale the counts up by 1/prop_measured (i.e. if only half the fish in a
+#  haul were measured, then double the count for each size). Easier to see the
+#  consequences of this in results files, as some values get scaled up a lot.
+raw_simp_prop_orig <- left_join(raw_simp_orig,
+                                raw_simp_totals_orig,
+                                by = "id") %>%
+  mutate(prop_measured = measured_in_haul / cpue_yoy,  # Not clear if that
+                                        # measured_in_haul actually comes from
+                                        # second tibble; not worrying now as
+                                        # prob not coming back to
+         scaled_counts = 1 / prop_measured)
+
+raw_simp_prop_orig
+summary(raw_simp_prop_orig)
+
+# Lengths are not always integers - turns out in 2021 they are to nearest 0.01
+# mm (and maybe later years if get more data).
+sort(unique(raw_simp_prop_orig$x))[1:10]
+
+stopifnot(max(raw_simp_orig$year) == 2021)   # just a check, but will call new
+                                        # data something different anyway (and
+                                        # will base the wrangling on nov23).
+```
+
+## New data set
+
+
+Given had already figured out above details, just filter to what we ended up
+needing in `raw_simp_prop_orig`, then compare fitted results (and come back to this
+if needed).
+
+```{r newdata}
+# From above for original data:
+# names(raw_simp_prop_orig)
+# "year"             "haul_no"          "strata"           "x"    # "cpue_yoy"         "id"               "measured_in_haul" "prop_measured"
+# "scaled_counts"
+
+raw_simp_nov23 <- select(raw_nov23,
+                       year = YEAR,
+                       haul_no = HAUL_NO,
+                       strata = STRATA,
+                       x = STD_LENGTH,
+                       total_no = TOTAL_NO,
+                       number_measured = NMEAS,
+                       exp_value = EXP) %>%
+  filter(strata %in% strata_to_keep) %>%
+  mutate(id = paste(year,       # Hayden's id, to make calcs easier
+                    strata,     # than grouping, and to more easily compare any results.
+                    haul_no,
+                    sep = "_"),
+         haul_no = as.factor(haul_no),
+         id = as.factor(id)) %>%
+  arrange(year,
+          strata,
+          haul_no)
+
+raw_simp_nov23
+
+# Think this is already calc'ed in new data; if results don't match with orig
+# then may have to dig into.
+# raw_simp_totals_nov23 <- raw_simp_nov23 %>%
+#  group_by(id) %>%
+#  summarise(measured_in_haul = n())
+
+raw_simp_prop_nov23 <- mutate(raw_simp_nov23,
+                            prop_measured = number_measured/total_no,
+                            scaled_counts = 1 / prop_measured) %>%  # The 1 is 1 obs for each row
+  filter(number_measured > 0)
+
+expect_equal(raw_simp_prop_nov23$exp_value,
+             raw_simp_prop_nov23$scaled_counts)
+
+# Last line gives no error. Excellent, is what I thought. So can remove
+#  exp_value (which was in the file).
+raw_simp_prop_nov23 <- select(raw_simp_prop_nov23,
+                              -"exp_value")
+
+raw_simp_prop_nov23
+summary(raw_simp_prop_nov23)
+
+stopifnot(max(raw_simp_nov23$year) == 2023)   # if get new data then need to
+                                              # double check and change
+                                              # bin_width if needed. Likely all
+                                              # 1 mm though.
+```
+
+Resolution, all integers:
+
+```{r resolution}
+length(unique(raw_simp_prop_nov23$x))
+sort(unique(raw_simp_prop_nov23$x))
+```
+Had originally thought probably best to make names exactly the same as `raw_simp_prop_orig`. Need
+to get on with analysis though, and if want to redo orig then make that data
+consistent with nov23.
+
+Check what data are available for each year, though `total_counts` can be a bit
+misleading as it's scaled up; `total_number_measured` is the number of rows so
+will be the total number of fish measured, whereas `total_counts` is scaled up
+based on proportion of what was caught that were measured.
+```{r nov23summary}
+summary_nov23 <- summarise(group_by(raw_simp_prop_nov23,
+                                  year,
+                                  strata),
+                           total_number_measured = n(),
+                           total_counts = sum(scaled_counts)) %>%
+  ungroup()
+summary_nov23 %>% as.data.frame()
+```
+
+### Understand when `number_measured` does not agree with number of rows
+
+Had originally assumed that `number_measured` should, for each `id`, be the number of rows for that
+`id`. But some `id` have more than two `number_measured`. Then wondered if they
+correspond to 1mm and 10mm measurements (i.e. different sampling
+protocols). Answer is usually yes, but in 2022 and 2023 there are sometimes two
+`sets` of measurements, as figured out in `hake-lengths-wrangling-3b1ee22.pdf`
+and used here going forward.
+
+So first see when
+`number_measured` does not add up to the number of rows.
+First tried `summarise` here but gives a warning because `unique(number_measured)` is not
+unique, so using the suggested `reframe` instead:
+
+```{r checknumber}
+# Was check_number_measured and I also switched column order from check_number_measured_2
+create_sets_temp <- reframe(group_by(raw_simp_prop_nov23,
+                                     id),
+                            total_no = unique(total_no),
+                            number_measured = unique(number_measured),
+                            number_rows = n())
+create_sets_temp
+```
+So each of these is a set, with some ids having two rows, namely
+```{r idstworows}
+id_table_repeated_index <- which(table(create_sets_temp$id) > 1)
+
+id_table_repeated_ids <-  table(create_sets_temp$id)[id_table_repeated_index]
+
+id_repeated <- filter(create_sets_temp,
+                      id %in% names(id_table_repeated_ids))
+id_repeated %>% a()
+
+# So now want the indices of those in create_sets_temp, to then make set values of B
+# for the second of each.
+create_sets_temp_id_repeated_index <- which(create_sets_temp$id %in% id_repeated$id)
+create_sets_temp_id_repeated_index   # This correctly has pairs of values, every
+                                     # other column here is just 1's:
+diff(create_sets_temp_id_repeated_index)
+
+create_sets_temp[create_sets_temp_id_repeated_index,]
+```
+
+Now want to add a `set` to each haul, with the repeated ones having an `A` and
+`B` to distinguish them, but not actually mean anything, as not sure what order
+they will be in (i.e. `B` won't necessarily correspond to 10-mm, especially as
+2022 and 2023 seem to have two sets both with 1-mm; we just need to distinguish
+the two sets). Then make a corresponding `id_set` that is `id` appended with `_A` or `_B`.
+```{r addset}
+set_values_vec <- rep("A", nrow(create_sets_temp))
+set_values_vec[
+  create_sets_temp_id_repeated_index[
+    seq(2,
+        length(create_sets_temp_id_repeated_index),
+        by = 2)]] <- "B"
+set_values_vec  <- as.factor(set_values_vec)
+ids_sets <- cbind(create_sets_temp,
+                  "set" = set_values_vec) %>%
+  tibble::as_tibble() %>%
+  mutate(id_set = as.factor(paste0(id, "_", set)))
+
+ids_sets
+summary(ids_sets)
+```
+So `id_set` is now the unique identifier for each set.
+
+A check (helps understanding) that the number of rows of `id_repeated` is twice
+the resulting number of `B`s in `ids_sets`, because `id_repeated` by definition
+has two rows for each haul, the second of which we assign to be set `B`:
+```{r checknumrows}
+expect_equal(nrow(id_repeated), 2*sum(ids_sets$set == "B"))
+```
+
+Note in particular, as figured out in `hake-lengths-wrangling-3b1ee22.pdf`, the
+ids that have either `total_no` or `number_measured` repeated:
+```{r quirkyones}
+id_repeated %>% filter(id %in% c("2009_C_82",
+                                 "2022_C_5",
+                                 "2022_C_8",
+                                 "2023_C_7",
+                                 "2023_C_27"))
+# And double checking automatically that no others do, maybe do at some point,
+# could use diff. But have checked manually, looking through id_repeated.
+```
+
+Now check that the `number_rows` is correctly the sum of `number_measured` for
+each haul (i.e. summing `number_measured` when there are two sets):
+```{r checksum}
+check <- summarise(group_by(ids_sets,
+                            id),
+                   number_measured_total = sum(number_measured),
+                   number_rows = unique(number_rows)) %>%
+  mutate(diff = number_measured_total - number_rows)
+expect_equal(check$diff,
+             rep(0, nrow(check)))
+```
+Great -- the total number measured (as recorded)
+equals the number of rows FOR THAT HAUL, even when there are two sets.
+
+### Get `sets` appended to `raw_simp_prop_nov23`
+
+```{r appending}
+raw_simp_prop_nov23_sets <- left_join(raw_simp_prop_nov23,
+                                      ids_sets,
+                                      by = c("id",
+                                             "total_no",
+                                             "number_measured"))
+summary(raw_simp_prop_nov23_sets)
+```
+
+
+This was just for checking the repeated id's. Decide if still needed; think may
+have been to help figure out what I've now done above. And is essentially a copy
+of earlier. Actually, think still need to work out the 10-mm issue, but doing it
+below for all `set_id`s.
+```{r checknumber6}
+id_repeated_full <- filter(raw_simp_prop_nov23_sets,
+                           id %in% id_repeated$id)
+id_repeated_full_unique <- reframe(group_by(id_repeated_full,
+                                            id_set),
+                                   x = unique(x))
+id_repeated_full_unique %>% a()
+
+# summarise there gives the warning, as expected. So using reframe.
+```
+
+Manually looking through first 180 lines or so when printing as a data frame we
+see my originally expected pattern: one set in each `id` looks indeed to be 1-mm
+resolution, and one set is 10-mm. Though can see that this is not the case for
+2022 and 2023 which are all 1-mm resolution.
+
+So there are two sets for all these. Sometimes due to resolution, sometimes
+not.
+
+Need resolution column, but need for all `id_sets`. Copying what I did for
+unique (in chunk idsmm below), think can just do it for all in one go. Need to
+given 2022/2023 issue anyway (didn't think I had to originally).
+
+
+```{r idsmmnew}
+# Adapting from analysis-nov23-C.Rmd but hadn't realised the multiple rows for
+# same strata issue then. Better to deal with all this here.
+
+# For each id_set give the unique x values.
+id_sets_unique_x <- reframe(group_by(raw_simp_prop_nov23_sets,
+                                   id_set),
+                          x = unique(x))      # Will be multiple, hence reframe
+id_sets_unique_x # %>% a()
+
+# Vector of measured lengths that aren't multiples of 10 mm
+non_10_mm_measurements <-
+  unique(id_sets_unique_x$x)[unique(id_sets_unique_x$x) %% 10 > 0] %>%
+  sort()
+
+non_10_mm_measurements
+
+id_sets_unique_x_non_10_mm <- mutate(id_sets_unique_x,
+                                     non_10_mm = (x %in% non_10_mm_measurements))
+
+id_sets_unique_x_non_10_mm
+
+# summarise correctly gives error with unique. So use reframe then look for
+#  ids-total_no combinations that have only non_10_mm = FALSE.
+id_sets_resolution <- summarise(group_by(id_sets_unique_x_non_10_mm,
+                                         id_set),
+                                "one_mm_res" = any(non_10_mm)) %>%   # at least
+                                        # 1 is TRUE, i.e. at least one 1-mm
+                                        # measurement
+  mutate(resolution = ifelse(one_mm_res, 1, 10)) %>%
+  ungroup()
+
+id_sets_resolution
+
+# Can see from that
+filter(raw_simp_prop_nov23, id == "1994_C_120")
+
+# Another check is
+expect_equal(nrow(id_sets_resolution),
+             length(unique(raw_simp_prop_nov23_sets$id_set)))
+expect_equal(nrow(id_sets_resolution),
+             length(unique(id_sets_resolution$id_set)))  # All unique
+```
+
+Then need to `left_join` the resolution with the original raw data.
+
+```{r joinres}
+raw_simp_prop_nov23_sets_resolution <- left_join(raw_simp_prop_nov23_sets,
+                                                 id_sets_resolution,
+                                                 by = "id_set")
+
+summary(raw_simp_prop_nov23_sets_resolution)
+```
+
+Then need to do the `wmin` and `wmax` needed for MLEbins.
+
+```{r makecountsnov23}
+# Will save raw_simp_prop_nov23_sets_resolution  so have full data set in
+# analysis, but also finish wrangling here to what is needed in analysis.
+raw_simp_prop_nov23_sets_resolution %>% a() %>% head(n=10)
+
+# Keep some of the headings in here for easy reference, e.g. haul_no; also a
+# further double check if summarise gives no warning
+counts_nov23 <-   summarise(group_by(raw_simp_prop_nov23_sets_resolution,
+                                     id_set,
+                                     x),
+                            year = unique(year),
+                            haul_no = unique(haul_no),
+                            strata = unique(strata),
+                            total_no = unique(total_no),
+                            number_measured = unique(number_measured),
+                            prop_measured = unique(prop_measured),
+                            resolution = unique(resolution),
+                            id = unique(id),
+                            binCount = sum(scaled_counts)) %>%
+  ungroup() %>%
+  mutate(wmin = x - resolution/2,
+         wmax = x + resolution/2) %>%
+  arrange(year,
+          strata,
+          haul_no,
+          wmin) %>%
+  relocate(year,
+           strata,
+           haul_no,
+           binCount,
+           wmin,
+           wmax,
+           id_set,
+           x,
+           total_no,
+           number_measured,
+           prop_measured,
+           id,
+           resolution)
+
+counts_nov23
+
+summary(counts_nov23)
+```
+Won't need all those columns for the analysis, just `year`, `binCounts`, `wmin`,
+`resolution` (to summarise by)
+`wmax`, and maybe `id_set` but don't think so as going to analyse by year.
+
+And `id`
+is still useful for checking individual hauls, such as checking `2022_C_5` which
+had the same `total_no` for sets `A` and `B`:
+```{r check2022C5}
+filter(counts_nov23,
+       id == "2022_C_5") %>%
+  select(-c("year", "strata", "haul_no", "id", "resolution")) %>%
+  a()
+```
+
+### Double check `prop_measured` is different for different sets
+
+This correctly has different `prop_measured` for the two sets, as defined
+earlier. Just clarifying it's correct.
+```{r checkpropmeasured}
+filter(counts_nov23, id == "2008_C_79") %>%
+  arrange(id_set) %>%
+  a()
+
+# To see individual fish:
+# filter(raw_simp_prop_nov23_sets_resolution, id == "2008_C_79") %>%
+# arrange(id_set) %>% a()
+```
+
+### And check `prop_measured` is still good
+
+```{r propmeasured}
+expect_equal(counts_nov23$prop_measured,
+             counts_nov23$number_measured / counts_nov23$total_no)
+```
+
+## Save two wrangled data files and bin widths
+
+Best not to save them as package objects as will get confusing when not committing them.
+
+```{r savedata}
+saveRDS(raw_simp_prop_orig,
+        "raw_simp_prop_orig.rds")
+saveRDS(bin_width_each_year_orig,
+        "bin_width_each_year_orig.rds")
+
+saveRDS(raw_simp_prop_nov23_sets_resolution,
+        "raw_simp_prop_nov23_sets_resolution.rds")
+saveRDS(counts_nov23,
+        "counts_nov23")
+```
+
+## Some ideas to keep here for reference
+
+Some original ideas I think:
+
+Do lengths from 28 to 89 mm.
+
+Whole coast do 2004 onwards, for just "C" can do all years (i.e. back to
+1994). TODO check the regions though excplicitly. TODO - in `summary_nov23` below
+it looks like 2001 is okay also.
+
+N only from 2013 onwards, so not much.
+
+Combine N and NC, though early years not sampled so could just do NC.
+
+Do NC, C, SC, S, from 2004 onwards. Separately and combined, though more
+southern don't have such a range.
+
+Make sure to not use OR and WA. WA is only 2011 and 2016. WA is 2011 2014 2015 2016 2017 2019.
+<!-- unique(filter(raw, STRATA == "OR")$YEAR) -->
+
+Try 2 mm bins for coastwide, Iain thinks should should affect the cutting off issue for 2014.
+
+D Ignore WA and OR (only 1 cm resolution), different surveys.
+
+Convert to body mass first, check results come out the same (Charlie). Though
+lengths are working fine, probably best to stick with these.
+
+Larvae. See `hake-lengths-larvae.Rmd` for what I started quickly on final day at
+La Jolla.
+
+D Rename columns for simplicity.
+
+Could functionalise with functions early on here, may want to do in a new package.
+
+Last (commented code) shows that only 2021 has lengths to 0.01 mm. So deal with that
+separately below.
+
+$b_l$ to $b_w$ figures -- see code at end of `hake-lengths-analysis.Rmd`.
